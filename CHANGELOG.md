@@ -6,20 +6,45 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-08-25
+
 ### Added
 
-- Added the I/O-free coroutine layer covering the whole of RFC 5804: the capability greeting, `CAPABILITY`, `STARTTLS`, `AUTHENTICATE`, `LOGOUT`, `NOOP`, `UNAUTHENTICATE`, `HAVESPACE`, `LISTSCRIPTS`, `GETSCRIPT`, `PUTSCRIPT`, `CHECKSCRIPT`, `SETACTIVE`, `DELETESCRIPT`, `RENAMESCRIPT` and a raw passthrough.
+- Added the `ManagesieveCoroutine` trait, the I/O-free contract every exchange implements.
 
-- Added `ManagesieveSessionOpen`, the composite coroutine covering transport selection, the greeting, the optional STARTTLS upgrade and the SASL exchange.
+  A `resume(Option<&[u8]>)` method returning `ManagesieveCoroutineState<Yield, Return>`, where the standard `ManagesieveYield` is either `WantsRead` or `WantsWrite(Vec<u8>)`. The caller owns the socket and pumps the coroutine, so the same state machines run under a blocking, an async or an in-memory driver.
 
-  It yields transport requests alongside reads and writes, so a caller on any runtime answers them with its own sockets and inherits the ordering.
+- Added the response framing of RFC 5804, parsed once for every command.
 
-- Added the std client behind the `client` feature: `ManagesieveClient` and `ManagesieveClientAsync` carry one method per coroutine, and `ManagesieveClientStd` implements the blocking one over any `Read + Write` stream.
+  A logical line spans as many physical ones as it has literals, a `{n}` marker making the CRLF that follows content rather than a line ending. `ManagesieveResponse::parse` answers `None` while a response is incomplete and returns it with the bytes it consumed once it is, since finding the end and reading the tokens are the same walk over the literals.
 
-  With a TLS feature enabled it also gains `connect`, which opens a whole authenticated session from a URL.
+- Added `ManagesieveResponseCode`, modelling the eleven codes RFC 5804 section 1.3 defines.
 
-- Added `ManagesieveResponseCode`, so a missing script, a taken name, a quota, a referral and a compilation warning arrive as themselves rather than as text to grep.
+  A missing script, a taken name, a quota and a compilation warning each arrive as themselves rather than as text to grep. An unmodelled code keeps its name, and an unknown `QUOTA` detail folds back onto `QUOTA`, as clients are asked to do.
 
-- Added the refusal to send a password or a bearer token over a cleartext connection, which RFC 5804 section 5 asks implementations to carry; `allow_cleartext_auth` turns it off.
+- Added a coroutine for every command the specification defines: the capability greeting, `CAPABILITY`, `STARTTLS`, `AUTHENTICATE`, `LOGOUT`, `NOOP`, `UNAUTHENTICATE`, `HAVESPACE`, `LISTSCRIPTS`, `GETSCRIPT`, `PUTSCRIPT`, `CHECKSCRIPT`, `SETACTIVE`, `DELETESCRIPT` and `RENAMESCRIPT`, plus a raw passthrough for whatever a later extension adds.
 
-- Added the refusal of bytes arriving past the greeting or past the `STARTTLS` reply, which would otherwise be replayed inside the TLS session the upgrade opens.
+- Added `ManagesieveAuthenticate`, one coroutine framing every SASL mechanism io-sasl computes.
+
+  RFC 5804 wraps them all identically, a mechanism name and a base64 string each way, so the mechanism is a value rather than a module: ANONYMOUS, EXTERNAL, LOGIN, PLAIN, OAUTHBEARER, XOAUTH2 and the three SCRAM profiles, with CRAM-MD5 behind its own feature. A server-first mechanism needs no special case, and the two Kerberos relays are refused by name rather than silently skipped.
+
+  A mechanism refusing what the server said cancels the exchange with the `"*"` string of RFC 5804 section 2.1 and reads the reply, so the caller keeps a session it can use rather than a stream out of step with its server.
+
+- Added `ManagesieveSessionOpen`, the composite coroutine covering everything between an address and an authenticated session.
+
+  Transport selection, the greeting, the optional STARTTLS upgrade with a second capability read over TLS, and the SASL exchange. It yields transport requests alongside reads and writes, so a caller on any runtime answers them with its own sockets and inherits the ordering.
+
+- Added the refusal to send a replayable credential over a cleartext connection.
+
+  PLAIN, LOGIN, OAUTHBEARER and XOAUTH2 hand a passive observer something it can reuse, and RFC 5804 section 5 asks implementations to carry a configuration where such mechanisms cannot run without an encryption layer. That configuration is the default here; `allow_cleartext_auth` opts out for a link the caller trusts.
+
+- Added the refusal of bytes arriving past the greeting or past the `STARTTLS` reply.
+
+  Nothing legitimate follows either, and a client is about to open a TLS session those bytes would be replayed inside, so the coroutine fails rather than handing them back for a caller to check or forget.
+
+- Added the std client behind the `client` feature.
+
+  `ManagesieveClient` and `ManagesieveClientAsync` carry one method per coroutine over a single `run`, and `ManagesieveClientStd` implements the blocking one over any `Read + Write` stream. With a TLS feature enabled, `connect` opens a whole authenticated session from a URL, answering the session coroutine's transport requests with a pimalaya-stream `Stream`.
+
+[unreleased]: https://github.com/pimalaya/io-managesieve/compare/v0.1.0..HEAD
+[0.1.0]: https://github.com/pimalaya/io-managesieve/compare/root..v0.1.0
