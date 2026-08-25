@@ -1,0 +1,63 @@
+[package]
+name = "io-managesieve"
+description = "ManageSieve client library for Rust"
+version = "0.1.0"
+authors = ["Clément DOUIN (soywod) <pimalaya.org@posteo.net>"]
+rust-version = "1.88"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+categories = ["email", "no-std"]
+keywords = ["email", "sieve", "managesieve", "client", "io-free"]
+homepage = "https://pimalaya.org"
+documentation = "https://docs.rs/io-managesieve/latest/io_managesieve"
+repository = "https://github.com/pimalaya/io-managesieve"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[features]
+default = ["rustls-ring", "scram"]
+scram = ["dep:rand", "io-sasl/scram", "io-sasl/scram-sha-1"]
+cram-md5 = ["io-sasl/cram-md5"]
+url = ["dep:url"]
+client = []
+rustls-ring = ["client", "url", "pimalaya-stream/rustls-ring", "dep:anyhow"]
+rustls-aws = ["client", "url", "pimalaya-stream/rustls-aws", "dep:anyhow"]
+native-tls = ["client", "url", "pimalaya-stream/native-tls", "dep:anyhow"]
+vendored = ["pimalaya-stream/vendored"]
+
+[[example]]
+name = "std_coroutine"
+path = "examples/std_coroutine.rs"
+
+[[example]]
+name = "std_client_light"
+path = "examples/std_client_light.rs"
+required-features = ["client"]
+
+[[example]]
+name = "std_client_full"
+path = "examples/std_client_full.rs"
+required-features = ["rustls-ring"]
+
+[[example]]
+name = "tokio_session"
+path = "examples/tokio_session.rs"
+required-features = ["url"]
+
+[dev-dependencies]
+env_logger = "0.11"
+tokio = { version = "1", features = ["io-util", "macros", "net", "rt-multi-thread"] }
+url = "2"
+
+[dependencies]
+anyhow = { version = "1", optional = true }
+base64 = { version = "0.23", default-features = false, features = ["alloc"] }
+io-sasl = { version = "0.1", default-features = false, features = ["saslprep"] }
+log = { version = "0.4", default-features = false }
+pimalaya-stream = { version = "0.3", default-features = false, optional = true }
+rand = { version = "0.10", optional = true }
+secrecy = { version = "0.10", default-features = false }
+thiserror = { version = "2", default-features = false }
+url = { version = "2.2", default-features = false, optional = true }

@@ -1,0 +1,8 @@
+# Coverage configuration, read by cargo-tarpaulin from the repository
+# root.
+#
+# The examples are programs needing a live server, so they are compiled
+# rather than run and their lines would otherwise be counted as
+# untested. The measured surface is the library.
+[default]
+exclude-files = ["examples/*"]
