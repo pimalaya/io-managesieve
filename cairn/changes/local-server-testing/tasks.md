@@ -3,6 +3,7 @@ cairn: tasks
 change: local-server-testing
 ---
 
+- [ ] Consider a `tests/stalwart.sh` fixture first, copying io-imap and io-smtp, and wire it through the reusable workflow `docker` input
 - [ ] Add a `server` devShell to the flake carrying dovecot and dovecot_pigeonhole, pinning the version pair deliberately (2.4 changed the configuration syntax)
 - [ ] Ship a Dovecot configuration and a start script binding loopback ports, one cleartext with STARTTLS and one with `ssl = yes`
 - [ ] Configure `auth_mechanisms` for plain, login, scram-sha-1, scram-sha-256 and cram-md5, with a password scheme the digest mechanism can work from

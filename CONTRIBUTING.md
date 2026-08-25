@@ -68,7 +68,7 @@ cargo tarpaulin --all-features --skip-clean --out Stdout
 
 Never twist the code to move the number. Code no test can reach is either dead, and goes, or is worth a test that means something on its own.
 
-The number to expect is 89.37%, and the gap is almost entirely the `Display` impl of a `State` enum. A coroutine logs a state change with `debug!("{}", self.state)`, which a test run with no logger installed never formats, and a single-state coroutine never changes state at all, so the impl of the reference template is dead in both directions. Those, the `Default` impls delegating to `new`, and the TLS arms of `client/connect.rs`, which need a TLS server to reach, are what the run counts short. A drop below that figure should be treated as untested code until a mutation shows otherwise.
+The number to expect is 89.37%, which is what both the default ptrace engine and the `--engine llvm` one CI uses report, so a figure from either is comparable. The gap is almost entirely the `Display` impl of a `State` enum. A coroutine logs a state change with `debug!("{}", self.state)`, which a test run with no logger installed never formats, and a single-state coroutine never changes state at all, so the impl of the reference template is dead in both directions. Those, the `Default` impls delegating to `new`, and the TLS arms of `client/connect.rs`, which need a TLS server to reach, are what the run counts short. A drop below that figure should be treated as untested code until a mutation shows otherwise.
 
 ## What belongs elsewhere
 

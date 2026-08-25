@@ -31,6 +31,12 @@ An `ssl = yes` listener reaches implicit TLS, the `sieves://` path nothing has e
 
 The literal cases come free once a real server is answering: a multi-line `NO` carrying a syntax error as a literal, a script name over the 1024 octets a quoted string allows, a name with a space that only LISTSCRIPTS returns literally.
 
+## The pattern already exists in the family
+
+io-imap and io-smtp each carry a `tests/stalwart.sh` that boots a real Stalwart server in a container, provisions an account over its management API, and runs an integration test against it; the reusable `pimalaya/nix` tests workflow takes a `docker` input for exactly that bootstrap step. Stalwart speaks ManageSieve, so that path is available here for the price of a script rather than a design.
+
+The two are complementary rather than competing. Stalwart in a container is what continuous integration can run unattended, and it is the cheapest way to get *a* real server answering. Dovecot in a devshell is what reaches the configuration corners, since the untested paths are unlocked by settings and Dovecot is both the dominant implementation and the one whose Sieve knobs are worth exercising. Which of the two lands first is a scheduling question; whichever it is, the other should not be dropped for it.
+
 ## A second implementation
 
 Cyrus timesieved is worth one run rather than a fixture. It is the divergence: it predates RFC 5804 in places, historically listened on port 2000, and a build without the `VERSION` capability carries no RENAMESCRIPT, CHECKSCRIPT or NOOP. That is the branch the error documentation describes and that nothing has produced, and it should surface as a clean rejection rather than a parse failure.

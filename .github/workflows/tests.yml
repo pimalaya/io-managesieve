@@ -1,0 +1,55 @@
+name: Tests
+
+on:
+  push:
+
+jobs:
+  tests:
+    uses: pimalaya/nix/.github/workflows/tests.yml@master
+    secrets: inherit
+
+  feature-shapes:
+    name: each layer alone
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: experimental-features = nix-command flakes
+      - uses: cachix/cachix-action@v17
+        with:
+          name: soywod
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          extraPullNames: nix-community
+      - uses: Swatinem/rust-cache@v2
+      - name: The coroutines alone, no_std and no client
+        run: nix develop -c cargo test --no-default-features
+      - name: The client over a caller-owned stream, without url
+        run: nix develop -c cargo test --no-default-features --features client
+      - name: The url scheme table, without the client
+        run: nix develop -c cargo test --no-default-features --features url
+      - name: The default set
+        run: nix develop -c cargo test
+
+  coverage:
+    name: coverage -> codecov
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: experimental-features = nix-command flakes
+      - uses: cachix/cachix-action@v17
+        with:
+          name: soywod
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          extraPullNames: nix-community
+      - uses: Swatinem/rust-cache@v2
+      - name: Measure coverage (cobertura.xml)
+        run: nix develop -c cargo tarpaulin --all-features --engine llvm --out Xml
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: cobertura.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
