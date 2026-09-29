@@ -13,7 +13,7 @@ Each command module SHALL carry unit tests feeding the coroutine bytes: a succes
 The lexer and the response parser SHALL carry their own tests, every command resting on them and the cases that matter there never showing up in a command test: a literal resuming a logical line, a response code holding one, a name that cannot be quoted, a malformed marker, a hostile size.
 
 ### Requirement: Whole exchanges
-`tests/exchange.rs` SHALL drive the public client against a scripted server over a real socket, asserting the exact bytes each command sends, so the framing, the serialisers, the parser and the pump have to agree. `tests/mechanisms.rs` SHALL sweep every mechanism the build enables and assert each goes out under the name it is registered with, a dozen near-identical arms being where two of them land on the same place.
+tests/exchange.rs SHALL drive the public client against a scripted server over a real socket, asserting the exact bytes each command sends, so the framing, the serialisers, the parser and the pump have to agree. tests/mechanisms.rs SHALL sweep every mechanism the build enables and assert each goes out under the name it is registered with, a dozen near-identical arms being where two of them land on the same place.
 
 ### Requirement: Feature matrix
 The test suite SHALL pass with no default features, with the default set, and with all features, each compiling a different set of mechanisms and layers.

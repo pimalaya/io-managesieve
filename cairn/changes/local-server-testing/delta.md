@@ -18,6 +18,6 @@ The crate SHALL be run at least once against a ManageSieve server other than Dov
 ## MODIFIED Requirements
 
 ### Requirement: Whole exchanges
-`tests/exchange.rs` SHALL drive the public client against a scripted server over a real socket, asserting the exact bytes each command sends, so the framing, the serialisers, the parser and the pump have to agree. `tests/mechanisms.rs` SHALL sweep every mechanism the build enables and assert each goes out under the name it is registered with, a dozen near-identical arms being where two of them land on the same place.
+tests/exchange.rs SHALL drive the public client against a scripted server over a real socket, asserting the exact bytes each command sends, so the framing, the serialisers, the parser and the pump have to agree. tests/mechanisms.rs SHALL sweep every mechanism the build enables and assert each goes out under the name it is registered with, a dozen near-identical arms being where two of them land on the same place.
 
 Neither proves interop, and neither SHALL be read as doing so: a scripted server only ever agrees with whoever wrote it, and a replayed specification vector proves the arithmetic rather than the acceptance. What a server does with these bytes is settled by the local server fixture.

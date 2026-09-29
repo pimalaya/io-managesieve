@@ -55,6 +55,14 @@ use crate::{
 ))]
 mod connect;
 
+#[cfg(any(
+    feature = "rustls-aws",
+    feature = "rustls-ring",
+    feature = "native-tls"
+))]
+#[doc(inline)]
+pub use connect::ManagesieveClientStdConnectOptions;
+
 /// Errors returned by the client surfaces.
 #[derive(Debug, Error)]
 pub enum ManagesieveClientError {

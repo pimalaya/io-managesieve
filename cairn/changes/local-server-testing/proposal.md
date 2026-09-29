@@ -9,7 +9,7 @@ created: 2026-08-25
 
 The suite proves what the crate does with bytes. It cannot prove what a server does with ours, and the gap is not evenly spread: it sits almost entirely on the paths a scripted socket cannot produce, which are the paths a server's *configuration* produces.
 
-The scripted server in tests/exchange.rs asserts the exact bytes each command sends, which is the right test for framing and the wrong one for interop: it only ever agrees with whoever wrote it. The SCRAM test replays the exchange published in RFC 7677 section 3, which proves the arithmetic and the base64 framing around it, and says nothing about whether a real server accepts what comes out. And `client/connect.rs` is the least covered file in the crate for the plain reason that its TLS arms need a TLS server.
+The scripted server in tests/exchange.rs asserts the exact bytes each command sends, which is the right test for framing and the wrong one for interop: it only ever agrees with whoever wrote it. The SCRAM test replays the exchange published in RFC 7677 section 3, which proves the arithmetic and the base64 framing around it, and says nothing about whether a real server accepts what comes out. And client/connect.rs is the least covered file in the crate for the plain reason that its TLS arms need a TLS server.
 
 So the missing tier is one real ManageSieve server, configured by us, reachable from the devshell. Configured by us is the load-bearing half: the untested paths are unlocked by server settings rather than by client calls, and no third-party account will have the ones we need.
 
@@ -33,7 +33,7 @@ The literal cases come free once a real server is answering: a multi-line `NO` c
 
 ## The pattern already exists in the family
 
-io-imap and io-smtp each carry a `tests/stalwart.sh` that boots a real Stalwart server in a container, provisions an account over its management API, and runs an integration test against it; the reusable `pimalaya/nix` tests workflow takes a `docker` input for exactly that bootstrap step. Stalwart speaks ManageSieve, so that path is available here for the price of a script rather than a design.
+io-imap and io-smtp each carry a tests/stalwart.sh that boots a real Stalwart server in a container, provisions an account over its management API, and runs an integration test against it; the reusable `pimalaya/nix` tests workflow takes a `docker` input for exactly that bootstrap step. Stalwart speaks ManageSieve, so that path is available here for the price of a script rather than a design.
 
 The two are complementary rather than competing. Stalwart in a container is what continuous integration can run unattended, and it is the cheapest way to get *a* real server answering. Dovecot in a devshell is what reaches the configuration corners, since the untested paths are unlocked by settings and Dovecot is both the dominant implementation and the one whose Sieve knobs are worth exercising. Which of the two lands first is a scheduling question; whichever it is, the other should not be dropped for it.
 

@@ -308,11 +308,10 @@ fn an_unsupported_mechanism_is_named_rather_than_skipped() {
 ))]
 mod connect {
     use io_managesieve::{
-        client::ManagesieveClientStd,
+        client::{ManagesieveClientStd, ManagesieveClientStdConnectOptions},
         session::{ManagesieveSessionOpenError, ManagesieveSessionOpenOptions},
     };
     use io_sasl::mechanism::SaslMechanism;
-    use pimalaya_stream::tls::Tls;
     use url::Url;
 
     use crate::{AUTH_PLAIN, plain, spawn};
@@ -329,13 +328,16 @@ mod connect {
 
         let url = Url::parse(&format!("sieve://{address}")).unwrap();
 
-        let opts = ManagesieveSessionOpenOptions {
-            allow_cleartext_auth: true,
+        let opts = ManagesieveClientStdConnectOptions {
+            sasl: Some(plain()),
+            session: ManagesieveSessionOpenOptions {
+                allow_cleartext_auth: true,
+                ..Default::default()
+            },
             ..Default::default()
         };
 
-        let (client, capabilities) =
-            ManagesieveClientStd::connect(&url, &Tls::default(), Some(plain()), opts).unwrap();
+        let (client, capabilities) = ManagesieveClientStd::connect(&url, opts).unwrap();
 
         assert_eq!(capabilities.owner().unwrap(), "alice@example.org");
 
@@ -347,10 +349,12 @@ mod connect {
     fn a_cleartext_session_refuses_to_send_the_password_by_default() {
         let (address, server) = spawn(Vec::new());
         let url = Url::parse(&format!("sieve://{address}")).unwrap();
-        let opts = ManagesieveSessionOpenOptions::default();
+        let opts = ManagesieveClientStdConnectOptions {
+            sasl: Some(plain()),
+            ..Default::default()
+        };
 
-        let err =
-            ManagesieveClientStd::connect(&url, &Tls::default(), Some(plain()), opts).unwrap_err();
+        let err = ManagesieveClientStd::connect(&url, opts).unwrap_err();
 
         assert!(matches!(
             err,

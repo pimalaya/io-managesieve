@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Added `ManagesieveClientStdConnectOptions`, whose `proxy` field tunnels the connection through a SOCKS5 or HTTP proxy.
+
+### Changed
+
+- **BREAKING**: `ManagesieveClientStd::connect` takes `(url, opts)`, the TLS configuration, the SASL mechanism and the session options moving into `ManagesieveClientStdConnectOptions`.
+
 ## [0.1.0] - 2026-08-25
 
 ### Added

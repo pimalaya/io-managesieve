@@ -49,7 +49,7 @@ This library is composed of 2 feature-gated layers:
 
 Authentication mechanisms come from [io-sasl](https://github.com/pimalaya/io-sasl), which computes what each one sends while this library carries it. The two Kerberos mechanisms are refused by name: their exchange answers with what the caller's own security context produced, which needs a vocabulary this library does not have.
 
-The `sieve://` URL scheme of RFC 5804 section 3 is read for the server it names. `sieves://` is this project's name for the deployments listening for a TLS handshake straight away, which the specification does not register.
+The `sieve://` URL scheme of RFC 5804 section 3 is read for the server it names. `sieves://` names the deployments listening for a TLS handshake straight away: RFC 5804 registers no scheme and no port for those, yet the PACC discovery draft resolves ManageSieve at 4190 under implicit TLS, so the scheme is carried rather than refused.
 
 [5804]: https://www.rfc-editor.org/rfc/rfc5804
 [4422]: https://www.rfc-editor.org/rfc/rfc4422

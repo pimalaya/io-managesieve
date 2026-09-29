@@ -21,3 +21,5 @@ The `client` feature gates a std-blocking client and the two traits carrying its
 
 ### Requirement: End-to-end connect
 With a TLS feature enabled, `ManagesieveClientStd::connect` SHALL open a whole authenticated session from a URL, answering the session coroutine's transport requests with a `pimalaya_stream::stream::Stream`. It SHALL own no protocol decision of its own, and SHALL draw a SCRAM client nonce when the credentials carry an empty one, that being the one thing an I/O-free coroutine cannot do.
+
+It SHALL take the URL as its only required argument and every optional setting in `ManagesieveClientStdConnectOptions` (`tls`, `proxy`, `sasl`, `session`), whose default connects directly or through the proxy the environment names, without authenticating. The proxy SHALL tunnel the TCP and TLS transports and SHALL be ignored for a local socket.
