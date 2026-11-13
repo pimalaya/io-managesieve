@@ -19,6 +19,9 @@ Each command SHALL be a `Managesieve*Command` struct with public fields, seriali
 
 The completion SHALL carry a parsed `ManagesieveResponseCode` where the server sent one, modelling the eleven RFC 5804 section 1.3 defines and keeping the name of anything else in `Other`. A `QUOTA` detail the crate does not know SHALL be read as `QUOTA`, as the specification asks.
 
+### Requirement: Hand-written response parser
+The response parser SHALL be hand-written rather than built on a parser-combinator library. Framing and tokenisation are one walk, a literal making a CRLF content rather than a line ending, and the reader SHALL keep a first-class incomplete outcome that a combinator library does not offer. A dependency SHALL NOT be introduced to restate the token-level grammar, which is flat and non-recursive.
+
 ### Requirement: Capabilities
 `rfc5804::capability` SHALL hold `ManagesieveCapabilities`, with an accessor per capability the specification defines and `value`/`has` for anything else, so a capability registered later stays reachable. Parsing SHALL skip a line it cannot read rather than failing the set.
 

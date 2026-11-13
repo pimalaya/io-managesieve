@@ -22,7 +22,10 @@ use thiserror::Error;
 
 use crate::{
     coroutine::*,
-    rfc5804::response::{MAX_LITERAL, ManagesieveResponse, ManagesieveResponseParseError},
+    rfc5804::response::{
+        LineBuffer, MAX_LITERAL, ManagesieveDataLine, ManagesieveLine, ManagesieveResponse,
+        ManagesieveResponseParseError,
+    },
     utils::escape_byte_string,
 };
 
@@ -63,7 +66,10 @@ pub struct ManagesieveResponseReadOk {
 /// I/O-free coroutine reading one ManageSieve response.
 pub struct ManagesieveResponseRead {
     wants_read: bool,
-    buf: Vec<u8>,
+    lines: LineBuffer,
+    data: Vec<ManagesieveDataLine>,
+    /// The bytes read so far, whole lines included.
+    len: usize,
 }
 
 impl ManagesieveResponseRead {
@@ -71,7 +77,9 @@ impl ManagesieveResponseRead {
     pub fn new() -> Self {
         Self {
             wants_read: false,
-            buf: Vec::new(),
+            lines: LineBuffer::default(),
+            data: Vec::new(),
+            len: 0,
         }
     }
 }
@@ -102,7 +110,8 @@ impl ManagesieveCoroutine for ManagesieveResponseRead {
                 }
                 Some(data) => {
                     trace!("read bytes: {}", escape_byte_string(data));
-                    self.buf.extend_from_slice(data);
+                    self.lines.push(data);
+                    self.len += data.len();
                 }
                 None => {
                     self.wants_read = true;
@@ -110,16 +119,20 @@ impl ManagesieveCoroutine for ManagesieveResponseRead {
                 }
             }
 
-            let parsed = match ManagesieveResponse::parse(&self.buf) {
-                Ok(parsed) => parsed,
-                Err(err) => {
-                    let err = ManagesieveCommandSendError::ParseResponse(err);
-                    return ManagesieveCoroutineState::Complete(Err(err));
+            let completion = loop {
+                match self.lines.take_line() {
+                    Ok(Some(ManagesieveLine::Data(line))) => self.data.push(line),
+                    Ok(Some(ManagesieveLine::Completion(completion))) => break Some(completion),
+                    Ok(None) => break None,
+                    Err(err) => {
+                        let err = ManagesieveCommandSendError::ParseResponse(err);
+                        return ManagesieveCoroutineState::Complete(Err(err));
+                    }
                 }
             };
 
-            let Some((response, consumed)) = parsed else {
-                if self.buf.len() > MAX_RESPONSE {
+            let Some(completion) = completion else {
+                if self.len > MAX_RESPONSE {
                     let err = ManagesieveCommandSendError::ResponseTooLarge;
                     return ManagesieveCoroutineState::Complete(Err(err));
                 }
@@ -128,7 +141,10 @@ impl ManagesieveCoroutine for ManagesieveResponseRead {
                 continue;
             };
 
-            let trailing = self.buf.split_off(consumed);
+            let data = mem::take(&mut self.data);
+            let response = ManagesieveResponse { data, completion };
+            let trailing = self.lines.pending().to_vec();
+
             debug!("response complete");
             trace!("{response:?}");
 
@@ -265,6 +281,30 @@ mod tests {
         // buffer would otherwise grow for as long as the server writes.
         let flood = vec![b'x'; MAX_RESPONSE + 1];
         let err = match read.resume(Some(&flood)) {
+            ManagesieveCoroutineState::Complete(Err(err)) => err,
+            state => panic!("expected Complete(Err), got {state:?}"),
+        };
+
+        assert_eq!(err, ManagesieveCommandSendError::ResponseTooLarge);
+    }
+
+    #[test]
+    fn data_lines_that_never_end_return_a_too_large_error() {
+        let mut read = ManagesieveResponseRead::new();
+        read.resume(None);
+
+        let mut line = b"{1048576}\r\n".to_vec();
+        line.resize(line.len() + 1024 * 1024, b'x');
+        line.extend_from_slice(b"\r\n");
+
+        for _ in 0..8 {
+            assert!(matches!(
+                read.resume(Some(&line)),
+                ManagesieveCoroutineState::Yielded(ManagesieveYield::WantsRead)
+            ));
+        }
+
+        let err = match read.resume(Some(&line)) {
             ManagesieveCoroutineState::Complete(Err(err)) => err,
             state => panic!("expected Complete(Err), got {state:?}"),
         };

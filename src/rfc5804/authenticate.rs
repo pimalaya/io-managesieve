@@ -111,7 +111,7 @@ use crate::{
             ManagesieveCapabilities, ManagesieveCapabilityGet, ManagesieveCapabilityGetError,
         },
         response::{
-            ManagesieveCompletion, ManagesieveLine, ManagesieveResponseCode,
+            LineBuffer, ManagesieveCompletion, ManagesieveLine, ManagesieveResponseCode,
             ManagesieveResponseParseError, ManagesieveStatus,
         },
     },
@@ -236,7 +236,7 @@ pub struct ManagesieveAuthenticate {
     state: State,
     sasl: Option<Sasl>,
     mechanism: Option<Box<Mechanism>>,
-    buf: Vec<u8>,
+    buf: LineBuffer,
     wants_read: bool,
     capabilities: ManagesieveCapabilities,
     opts: ManagesieveAuthenticateOptions,
@@ -256,7 +256,7 @@ impl ManagesieveAuthenticate {
             state: State::Start,
             sasl: Some(sasl.into()),
             mechanism: None,
-            buf: Vec::new(),
+            buf: LineBuffer::default(),
             wants_read: false,
             capabilities: ManagesieveCapabilities::default(),
             opts,
@@ -282,8 +282,8 @@ impl ManagesieveAuthenticate {
 
     /// Reads one logical line out of the buffer, or asks for more.
     fn take_line(&mut self) -> Result<Option<ManagesieveLine>, ManagesieveAuthenticateError> {
-        let Some((line, consumed)) = ManagesieveLine::parse(&self.buf)? else {
-            if self.buf.len() > MAX_RESPONSE {
+        let Some(line) = self.buf.take_line()? else {
+            if self.buf.pending().len() > MAX_RESPONSE {
                 let err = ManagesieveCommandSendError::ResponseTooLarge;
                 return Err(err.into());
             }
@@ -292,7 +292,6 @@ impl ManagesieveAuthenticate {
             return Ok(None);
         };
 
-        self.buf.drain(..consumed);
         Ok(Some(line))
     }
 
@@ -304,15 +303,10 @@ impl ManagesieveAuthenticate {
     /// session usable.
     fn saw_cancellation_reply(&mut self) -> bool {
         loop {
-            match ManagesieveLine::parse(&self.buf) {
-                Ok(Some((line, consumed))) => {
-                    self.buf.drain(..consumed);
-
-                    if matches!(line, ManagesieveLine::Completion(_)) {
-                        return true;
-                    }
-                }
-                Ok(None) => return self.buf.len() > MAX_RESPONSE,
+            match self.buf.take_line() {
+                Ok(Some(ManagesieveLine::Completion(_))) => return true,
+                Ok(Some(ManagesieveLine::Data(_))) => {}
+                Ok(None) => return self.buf.pending().len() > MAX_RESPONSE,
                 Err(_) => return true,
             }
         }
@@ -446,7 +440,7 @@ impl ManagesieveCoroutine for ManagesieveAuthenticate {
                         }
                         Some(data) => {
                             trace!("read {} bytes", data.len());
-                            self.buf.extend_from_slice(data);
+                            self.buf.push(data);
                         }
                         None => {}
                     }
@@ -521,7 +515,7 @@ impl ManagesieveCoroutine for ManagesieveAuthenticate {
 
                     if let Some(data) = arg.take() {
                         trace!("read {} bytes", data.len());
-                        self.buf.extend_from_slice(data);
+                        self.buf.push(data);
                     }
 
                     // NOTE: a connection dying under the cancellation is

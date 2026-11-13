@@ -24,6 +24,11 @@ A coroutine's private `State` enum SHALL name each variant after the action in f
 
 Both SHALL complete on `ManagesieveResponseReadOk`, carrying the parsed response and whatever arrived past it.
 
+### Requirement: Incremental reading
+A coroutine reading a response SHALL read each byte once: a logical line arriving over several reads SHALL be searched for its line ending, lexed and copied a single time, and a line already read SHALL NOT be read again when the next one arrives. The work a response costs SHALL follow its size, whatever the number of reads a peer splits it over.
+
+`ManagesieveResponseRead` and the authentication exchange SHALL share one line reader. `MAX_RESPONSE` SHALL bound the bytes of a whole response, the lines already read included, and in the authentication exchange the bytes of the line being read.
+
 ### Requirement: Error shape
 Each command SHALL declare its own error enum, normalising to `"ManageSieve <COMMAND> failed: <cause>"`, with a `Rejected(ManagesieveCompletion)` variant for a NO or BYE and a `Send` variant wrapping the base exchange. RFC wire tokens SHALL keep their exact spelling.
 

@@ -3,6 +3,7 @@
 #
 # The examples are programs needing a live server, so they are compiled
 # rather than run and their lines would otherwise be counted as
-# untested. The measured surface is the library.
+# untested. The fuzz targets are a separate cargo package the coverage
+# run never builds. The measured surface is the library.
 [default]
-exclude-files = ["examples/*"]
+exclude-files = ["examples/*", "fuzz/*"]

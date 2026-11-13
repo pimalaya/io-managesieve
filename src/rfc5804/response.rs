@@ -24,7 +24,7 @@ use alloc::{string::String, vec::Vec};
 
 use thiserror::Error;
 
-use crate::utils::{Token, scan_line};
+use crate::utils::{LineScan, Token, scan_line};
 
 /// The largest literal this crate reads before giving up.
 ///
@@ -312,6 +312,11 @@ impl ManagesieveLine {
             return Ok(None);
         };
 
+        Ok(Some((Self::from_tokens(tokens)?, consumed)))
+    }
+
+    /// Reads the line its tokens spell.
+    fn from_tokens(tokens: Vec<Token>) -> Result<Self, ManagesieveResponseParseError> {
         // NOTE: every data line the grammar defines opens on a string,
         // and every completion line opens on one of three atoms, so the
         // first token alone tells the two apart.
@@ -320,7 +325,7 @@ impl ManagesieveLine {
             _ => Self::Completion(parse_completion(&tokens)?),
         };
 
-        Ok(Some((line, consumed)))
+        Ok(line)
     }
 }
 
@@ -389,6 +394,44 @@ impl fmt::Display for ManagesieveResponse {
         }
 
         write!(f, "{}", self.completion)
+    }
+}
+
+/// The bytes a stream returned, read one logical line at a time.
+///
+/// Each byte is searched, lexed and copied once, however the reads
+/// split a line.
+#[derive(Debug, Default)]
+pub(crate) struct LineBuffer {
+    bytes: Vec<u8>,
+    /// Where the line being read starts.
+    start: usize,
+    scan: LineScan,
+}
+
+impl LineBuffer {
+    /// Appends what a read returned, dropping the lines already taken.
+    pub(crate) fn push(&mut self, data: &[u8]) {
+        self.bytes.drain(..self.start);
+        self.start = 0;
+        self.bytes.extend_from_slice(data);
+    }
+
+    /// Takes the next logical line, [`None`] while it is incomplete.
+    pub(crate) fn take_line(
+        &mut self,
+    ) -> Result<Option<ManagesieveLine>, ManagesieveResponseParseError> {
+        let Some((tokens, consumed)) = self.scan.scan(&self.bytes[self.start..])? else {
+            return Ok(None);
+        };
+
+        self.start += consumed;
+        ManagesieveLine::from_tokens(tokens).map(Some)
+    }
+
+    /// The bytes no line took yet.
+    pub(crate) fn pending(&self) -> &[u8] {
+        &self.bytes[self.start..]
     }
 }
 

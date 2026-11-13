@@ -25,7 +25,7 @@ A coroutine refuses trailing bytes rather than handing them back. `SmtpStartTls`
 
 The session refuses cleartext credentials by default. RFC 5804 section 5 asks implementations to carry a configuration where a mechanism vulnerable to passive eavesdropping cannot run without an encryption layer, and this is that configuration; `ManagesieveSessionOpenOptions::allow_cleartext_auth` opts out. PLAIN, LOGIN, OAUTHBEARER and XOAUTH2 are the four mechanisms it covers, being the ones that hand an observer something replayable.
 
-The response parser is one pass rather than `is_complete` then `parse`. Finding where a response ends means walking its literals, which is the same walk as reading its tokens, so `ManagesieveResponse::parse` answers `None` while the response is incomplete and returns the response plus the bytes it consumed once it is.
+The response parser is one pass rather than `is_complete` then `parse`. Finding where a response ends means walking its literals, which is the same walk as reading its tokens, so `ManagesieveResponse::parse` answers `None` while the response is incomplete and returns the response plus the bytes it consumed once it is. The coroutines do not call it: they keep that walk where the last read left it and take one logical line at a time, so a byte is searched, lexed and copied once however a peer splits its response over the reads.
 
 ## Feature matrix
 
@@ -48,7 +48,7 @@ cargo build --all-features                    # the legacy mechanism too
 
 ## Tests
 
-Three layers. The unit tests next to each coroutine feed it bytes and pin what it puts on the wire and what it makes of the reply, in the shape io-imap's auth coroutines set: a success, a rejection, an EOF, plus whatever that command gets wrong on its own. The lexer and the response parser carry their own, since every command rests on them and the cases that matter there (a literal resuming a line, a response code holding one, a name that cannot be quoted) never show up in a command test. tests/exchange.rs drives the public client against a scripted server over a real socket, asserting the exact bytes each command sends, so the framing, the serialisers, the parser and the pump have to agree; it also replays the SCRAM-SHA-256 exchange published in RFC 7677 section 3 and checks that a server answering OK without a server-final is refused. tests/mechanisms.rs sweeps every mechanism the build enables and asserts each goes out under the name it is registered with, which is the one mistake a dozen near-identical dispatch arms actually make.
+Three layers. The unit tests next to each coroutine feed it bytes and pin what it puts on the wire and what it makes of the reply, in the shape io-imap's auth coroutines set: a success, a rejection, an EOF, plus whatever that command gets wrong on its own. The lexer and the response parser carry their own, since every command rests on them and the cases that matter there (a literal resuming a line, a response code holding one, a name that cannot be quoted) never show up in a command test. tests/exchange.rs drives the public client against a scripted server over a real socket, asserting the exact bytes each command sends, so the framing, the serialisers, the parser and the pump have to agree; it also replays the SCRAM-SHA-256 exchange published in RFC 7677 section 3 and checks that a server answering OK without a server-final is refused. tests/mechanisms.rs sweeps every mechanism the build enables and asserts each goes out under the name it is registered with, which is the one mistake a dozen near-identical dispatch arms actually make. tests/drip.rs feeds the readers a response a byte at a time under a counting allocator and asserts that what they allocate follows the size of the response rather than the number of reads, which is how a reader starting over at each read shows without a clock.
 
 The example opening each module is a fourth layer, thin but load-bearing: it is the pump loop a consumer copies, and it runs as a doctest.
 
@@ -69,6 +69,19 @@ cargo tarpaulin --all-features --skip-clean --out Stdout
 Never twist the code to move the number. Code no test can reach is either dead, and goes, or is worth a test that means something on its own.
 
 The number to expect is 89.37%, which is what both the default ptrace engine and the `--engine llvm` one CI uses report, so a figure from either is comparable. The gap is almost entirely the `Display` impl of a `State` enum. A coroutine logs a state change with `debug!("{}", self.state)`, which a test run with no logger installed never formats, and a single-state coroutine never changes state at all, so the impl of the reference template is dead in both directions. Those, the `Default` impls delegating to `new`, and the TLS arms of client/connect.rs, which need a TLS server to reach, are what the run counts short. A drop below that figure should be treated as untested code until a mutation shows otherwise.
+
+tarpaulin.toml keeps the examples and the fuzz targets out of the measured surface: the first need a live server, the second are a separate cargo package the coverage run never builds.
+
+## Fuzzing
+
+Two coverage-guided targets under [fuzz/](./fuzz), described in [fuzz/README.md](./fuzz/README.md): `parse` hands `ManagesieveResponse::parse` arbitrary bytes, and `read` hands the two readers the same bytes in arbitrary splits, holding them to what the parser says of the whole and to an allocation bound that follows the bytes fed rather than the number of reads. A change to the lexer, to the literal handling or to either reader is worth a run of both.
+
+They need the nightly toolchain cargo-fuzz builds against, which the `fuzz` devShell of the flake carries, unlike the default one:
+
+```sh
+nix develop .#fuzz --command cargo fuzz run parse
+nix develop .#fuzz --command cargo fuzz run read
+```
 
 ## What belongs elsewhere
 

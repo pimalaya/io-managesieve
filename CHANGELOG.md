@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Added the `parse` and `read` fuzz targets, run from the `fuzz` devShell.
+
+### Security
+
+- Fixed `send::ManagesieveResponseRead` and `rfc5804::authenticate::ManagesieveAuthenticate` reading a response again from its first byte at each read.
+
+  Each byte is searched, lexed and copied once, so a response costs what its size costs however a server splits it over the reads.
+
 ## [0.2.0] - 2026-09-29
 
 ### Added

@@ -1,7 +1,7 @@
 ---
 cairn: change
 id: parser-hardening
-status: active
+status: landed
 created: 2026-08-25
 ---
 
@@ -36,3 +36,11 @@ Worth asserting alongside: `consumed` never exceeds the buffer, a literal never 
 ## What would change the answer
 
 Two things, neither of them near. If the response-code grammar were ever exposed in full, `extension-data` is recursive in the RFC 5804 ABNF and nested parentheses are where combinators start paying; today unknown codes keep their name and discard their arguments, which is what clients are told to do. And if a Sieve-language parser ever landed in this crate, chumsky would be the right tool for it, which is precisely why it never will: the server compiles the script and says where it went wrong, and CHECKSCRIPT exists so a client does not have to.
+
+## What the family audit added (2026-11-13)
+
+The second target as proposed above would have passed without seeing the defect that mattered. The readers were stateless: each read appended to a buffer and parsed it again from its first byte, so the same bytes in any split trivially gave the outcome of the whole, and chunk-split invariance held by construction. What the splits changed was the cost. A response dripped a byte at a time was lexed once per byte, its complete literals copied once per byte, and the work grew with the square of the response (family audit of 2026-11-13, SIEVE-01). The greeting is read this way before TLS, so on a cleartext connection whoever sits on the path chooses the splits.
+
+So the change grew in two directions. The readers became incremental: a resumable line scanner keeps how far a segment was searched for its line ending, the tokens already lexed and the literal it is waiting for, and `ManagesieveResponseRead` and `ManagesieveAuthenticate` take one logical line at a time from a buffer that drops the lines already taken. And the second target gained a cost oracle next to the invariance, which an incremental reader finally makes worth asserting: a counting allocator bounds what a reader allocates by the bytes it was fed, whatever the number of reads.
+
+Time is not what the oracle or the regression tests measure. Allocated bytes are deterministic, and they see both halves of the old cost that allocate, the tokens rebuilt and the literals copied again. The third half, a segment searched again for a line ending it does not hold yet, allocates nothing: a unit test on the scanner's cursor pins that one.

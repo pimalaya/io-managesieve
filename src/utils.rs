@@ -5,7 +5,7 @@
 //! and strings, a string being either quoted or a length-prefixed
 //! literal ([RFC 5804 section 1.2]). Reading a response therefore means
 //! reading a line, then possibly a counted run of octets, then the rest
-//! of that same line, which is what [`scan_line`] does. Writing a
+//! of that same line, which is what [`LineScan`] does. Writing a
 //! command means quoting a script name or framing a script body, which
 //! is what [`quote`] and [`literal`] do.
 //!
@@ -14,7 +14,7 @@
 //!
 //! [RFC 5804 section 1.2]: https://www.rfc-editor.org/rfc/rfc5804#section-1.2
 
-use core::str;
+use core::{mem, str};
 
 use alloc::{format, string::String, vec::Vec};
 
@@ -39,50 +39,90 @@ pub(crate) enum Token {
     Close,
 }
 
-/// Reads one logical response line from the front of `buf`.
+/// Resumable reader of one logical response line.
 ///
 /// A logical line spans as many physical lines as it has literals, each
 /// literal marker consuming the counted octets that follow the CRLF and
-/// the line resuming right after them. Returns [`None`] while the line
-/// is still incomplete, and the tokens plus the number of bytes they
-/// consumed once it is.
+/// the line resuming right after them. What was read stays read: a line
+/// arriving in pieces is searched, lexed and copied once.
+#[derive(Debug, Default)]
+pub(crate) struct LineScan {
+    /// The tokens read so far.
+    tokens: Vec<Token>,
+    /// Where the segment or the literal being read starts.
+    start: usize,
+    /// How far the segment was searched for its line ending.
+    scanned: usize,
+    /// Where the literal being read stops, when one is.
+    literal: Option<usize>,
+}
+
+impl LineScan {
+    /// Reads on from where the last call stopped.
+    ///
+    /// `buf` is what the last call was given, plus what arrived since.
+    /// Returns [`None`] while the line is still incomplete, and the
+    /// tokens plus the number of bytes they consumed once it is, the
+    /// reader being ready for another line then.
+    pub(crate) fn scan(
+        &mut self,
+        buf: &[u8],
+    ) -> Result<Option<(Vec<Token>, usize)>, ManagesieveResponseParseError> {
+        loop {
+            if let Some(stop) = self.literal {
+                if buf.len() < stop {
+                    return Ok(None);
+                }
+
+                let string = buf[self.start..stop].to_vec();
+                self.tokens.push(Token::String(string));
+
+                self.start = stop;
+                self.scanned = stop;
+                self.literal = None;
+            }
+
+            let unscanned = &buf[self.scanned..];
+            let Some(offset) = unscanned.iter().position(|byte| *byte == b'\n') else {
+                self.scanned = buf.len();
+                return Ok(None);
+            };
+
+            let eol = self.scanned + offset;
+            let mut end = eol;
+
+            if end > self.start && buf[end - 1] == b'\r' {
+                end -= 1;
+            }
+
+            let (mut lexed, marker) = lex(&buf[self.start..end])?;
+            self.tokens.append(&mut lexed);
+
+            self.start = eol + 1;
+            self.scanned = eol + 1;
+
+            let Some(size) = marker else {
+                let Self { tokens, .. } = mem::take(self);
+                return Ok(Some((tokens, eol + 1)));
+            };
+
+            let Some(stop) = self.start.checked_add(size) else {
+                return Err(ManagesieveResponseParseError::LiteralTooLarge(size));
+            };
+
+            self.literal = Some(stop);
+        }
+    }
+}
+
+/// Reads one logical response line from the front of `buf`.
+///
+/// Returns [`None`] while the line is still incomplete, and the tokens
+/// plus the number of bytes they consumed once it is.
 pub(crate) fn scan_line(
     buf: &[u8],
 ) -> Result<Option<(Vec<Token>, usize)>, ManagesieveResponseParseError> {
-    let mut tokens = Vec::new();
-    let mut index = 0;
-
-    loop {
-        let Some(offset) = buf[index..].iter().position(|byte| *byte == b'\n') else {
-            return Ok(None);
-        };
-
-        let eol = index + offset;
-        let mut end = eol;
-
-        if end > index && buf[end - 1] == b'\r' {
-            end -= 1;
-        }
-
-        let (mut lexed, marker) = lex(&buf[index..end])?;
-        tokens.append(&mut lexed);
-
-        let Some(size) = marker else {
-            return Ok(Some((tokens, eol + 1)));
-        };
-
-        let start = eol + 1;
-        let Some(stop) = start.checked_add(size) else {
-            return Err(ManagesieveResponseParseError::LiteralTooLarge(size));
-        };
-
-        if buf.len() < stop {
-            return Ok(None);
-        }
-
-        tokens.push(Token::String(buf[start..stop].to_vec()));
-        index = stop;
-    }
+    LineScan::default().scan(buf)
 }
 
 /// Lexes one physical segment, CRLF already stripped.
@@ -366,6 +406,39 @@ mod tests {
     fn reports_an_incomplete_line_and_an_incomplete_literal() {
         assert_eq!(scan_line(b"\"IMPLEMENTATION\"").unwrap(), None);
         assert_eq!(scan_line(b"{15}\r\nvacation").unwrap(), None);
+    }
+
+    #[test]
+    fn resumes_a_line_wherever_the_reads_split_it() {
+        let lines: [&[u8]; 4] = [
+            b"\"IMPLEMENTATION\" \"Example1 ManageSieved v001\"\r\n",
+            b"{15}\r\nvacation script ACTIVE\r\n",
+            b"OK (TAG {16}\r\nSTARTTLS-SYNC-42) \"Done\"\r\n",
+            b"{23}\r\nrequire [\"fileinto\"];\r\n\r\n",
+        ];
+
+        for line in lines {
+            let whole = scan_line(line).unwrap();
+            assert!(whole.is_some());
+
+            for split in 0..line.len() {
+                let mut scan = LineScan::default();
+
+                assert_eq!(scan.scan(&line[..split]).unwrap(), None);
+                assert_eq!(scan.scan(line).unwrap(), whole);
+            }
+        }
+    }
+
+    #[test]
+    fn searches_a_byte_for_the_line_ending_once() {
+        let line = b"\"a name long enough to arrive in pieces\"";
+        let mut scan = LineScan::default();
+
+        for len in 1..=line.len() {
+            assert_eq!(scan.scan(&line[..len]).unwrap(), None);
+            assert_eq!(scan.scanned, len);
+        }
     }
 
     #[test]
