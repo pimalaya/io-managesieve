@@ -10,11 +10,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 - Added the `parse` and `read` fuzz targets, run from the `fuzz` devShell.
 
+- Added `ManagesieveAuthenticateError::Completed`, what `ManagesieveAuthenticate` answers when resumed after it completed.
+
+  **BREAKING** for a match naming every variant.
+
+### Changed
+
+- Changed the `scram` feature to pull no randomness: `rand` now comes with the TLS features, whose connect is the only code drawing a nonce.
+
+  A build of the coroutines with `scram` alone no longer depends on `rand` and its `std` feature.
+
+### Fixed
+
+- Fixed `ManagesieveAuthenticate` panicking when resumed after it completed with an error.
+
+- Fixed `ManagesieveSessionTransport::from_url` keeping the brackets around an IPv6 host.
+
+  `sieve://[2001:db8::25]` now asks for a connection to `2001:db8::25`.
+
 ### Security
 
 - Fixed `send::ManagesieveResponseRead` and `rfc5804::authenticate::ManagesieveAuthenticate` reading a response again from its first byte at each read.
 
   Each byte is searched, lexed and copied once, so a response costs what its size costs however a server splits it over the reads.
+
+- Fixed `ManagesieveAuthenticateCommand` showing its initial response through `Debug`.
+
+  **BREAKING**: `initial_response` is an `Option<SecretBox<[u8]>>`, redacted when printed and zeroised when dropped, and the command no longer derives `Eq` and `PartialEq`.
 
 ## [0.2.0] - 2026-09-29
 

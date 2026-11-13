@@ -153,7 +153,7 @@ impl fmt::Display for State {
 mod tests {
     use alloc::string::ToString;
 
-    use crate::{coroutine::*, rfc5804::greeting::*};
+    use crate::rfc5804::greeting::*;
 
     #[test]
     fn success_returns_the_capabilities() {

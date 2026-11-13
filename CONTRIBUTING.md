@@ -29,9 +29,9 @@ The response parser is one pass rather than `is_complete` then `parse`. Finding 
 
 ## Feature matrix
 
-`client` gates the std-blocking client, the blessed std-gating. Each TLS feature implies it, selects the pimalaya-stream provider, and pulls `anyhow` and `url`.
+`client` gates the std-blocking client, the blessed std-gating. Each TLS feature implies it, selects the pimalaya-stream provider, and pulls `anyhow`, `url` and `rand`, the last for the SCRAM client nonce `connect` draws when the caller gave none.
 
-`scram` pulls the crypto crates the SCRAM exchange needs plus `rand` for the client nonce the std client draws. It enables both io-sasl SCRAM features rather than one: RFC 5804 section 2.1 tells client implementations to implement SCRAM-SHA-1, so a default build carrying only the SHA-2 profiles would not conform.
+`scram` pulls the crypto crates the SCRAM exchange needs and no randomness: the coroutines take the nonce with the credentials, so the coroutines with `scram` build without `rand` and without std. It enables both io-sasl SCRAM features rather than one: RFC 5804 section 2.1 tells client implementations to implement SCRAM-SHA-1, so a default build carrying only the SHA-2 profiles would not conform.
 
 `cram-md5` adds the legacy digest mechanism and stays off, so a build gets a weak mechanism only by asking for it. It is worth having at all because ManageSieve is the one protocol in this family whose framing carries a server-first mechanism without a special case.
 

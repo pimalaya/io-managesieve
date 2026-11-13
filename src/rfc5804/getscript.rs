@@ -165,10 +165,7 @@ impl fmt::Display for State {
 mod tests {
     use alloc::vec::Vec;
 
-    use crate::{
-        coroutine::*,
-        rfc5804::{getscript::*, response::ManagesieveResponseCode},
-    };
+    use crate::rfc5804::{getscript::*, response::ManagesieveResponseCode};
 
     #[test]
     fn success_returns_the_script_bytes() {

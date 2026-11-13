@@ -200,7 +200,6 @@ mod tests {
     use alloc::{vec, vec::Vec};
 
     use crate::{
-        coroutine::*,
         rfc5804::response::{ManagesieveResponseParseError, ManagesieveStatus},
         send::*,
     };

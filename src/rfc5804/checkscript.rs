@@ -156,7 +156,7 @@ mod tests {
         vec::Vec,
     };
 
-    use crate::{coroutine::*, rfc5804::checkscript::*};
+    use crate::rfc5804::checkscript::*;
 
     #[test]
     fn success_returns_no_warning() {

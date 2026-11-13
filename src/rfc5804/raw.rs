@@ -143,10 +143,7 @@ impl fmt::Display for State {
 mod tests {
     use alloc::{string::ToString, vec::Vec};
 
-    use crate::{
-        coroutine::*,
-        rfc5804::{raw::*, response::ManagesieveStatus},
-    };
+    use crate::rfc5804::{raw::*, response::ManagesieveStatus};
 
     #[test]
     fn adds_the_crlf_the_caller_left_out() {

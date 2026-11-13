@@ -175,7 +175,7 @@ mod tests {
         vec::Vec,
     };
 
-    use crate::{coroutine::*, rfc5804::putscript::*};
+    use crate::rfc5804::putscript::*;
 
     #[test]
     fn success_returns_no_warning() {

@@ -152,10 +152,7 @@ impl fmt::Display for State {
 mod tests {
     use alloc::vec::Vec;
 
-    use crate::{
-        coroutine::*,
-        rfc5804::{response::ManagesieveResponseCode, setactive::*},
-    };
+    use crate::rfc5804::{response::ManagesieveResponseCode, setactive::*};
 
     #[test]
     fn success_returns_ok() {

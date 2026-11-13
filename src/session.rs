@@ -86,13 +86,15 @@
 
 use core::fmt;
 
+#[cfg(feature = "url")]
+use alloc::string::ToString;
 use alloc::{boxed::Box, string::String, vec::Vec};
 
 use io_sasl::mechanism::{Sasl, SaslMechanism};
 use log::debug;
 use thiserror::Error;
 #[cfg(feature = "url")]
-use url::Url;
+use url::{Host, Url};
 
 use crate::{
     coroutine::*,
@@ -207,12 +209,16 @@ impl ManagesieveSessionTransport {
             return Ok(Self::Unix(String::from(url.path())));
         }
 
-        let Some(host) = url.host_str() else {
-            let url = String::from(url.as_str());
-            return Err(ManagesieveSessionOpenError::UrlMissingHost(url));
+        let host = match url.host() {
+            Some(Host::Domain(domain)) => String::from(domain),
+            Some(Host::Ipv4(addr)) => addr.to_string(),
+            Some(Host::Ipv6(addr)) => addr.to_string(),
+            None => {
+                let url = String::from(url.as_str());
+                return Err(ManagesieveSessionOpenError::UrlMissingHost(url));
+            }
         };
 
-        let host = String::from(host);
         let port = url.port().unwrap_or(DEFAULT_PORT);
 
         if scheme.eq_ignore_ascii_case("sieve") {
@@ -388,7 +394,7 @@ impl ManagesieveCoroutine for ManagesieveSessionOpen {
 
     fn resume(
         &mut self,
-        arg: Option<&[u8]>,
+        mut arg: Option<&[u8]>,
     ) -> ManagesieveCoroutineState<Self::Yield, Self::Return> {
         loop {
             match &mut self.state {
@@ -425,7 +431,7 @@ impl ManagesieveCoroutine for ManagesieveSessionOpen {
                     return ManagesieveCoroutineState::Yielded(yielded);
                 }
                 State::Greeting(greeting) => {
-                    self.capabilities = managesieve_try!(greeting, arg);
+                    self.capabilities = managesieve_try!(greeting, arg.take());
 
                     if self.opts.starttls {
                         if !self.capabilities.starttls() {
@@ -448,7 +454,7 @@ impl ManagesieveCoroutine for ManagesieveSessionOpen {
                     }
                 }
                 State::StartTls(starttls) => {
-                    managesieve_try!(starttls, arg);
+                    managesieve_try!(starttls, arg.take());
 
                     self.upgraded = true;
                     self.state = State::Upgraded;
@@ -467,7 +473,7 @@ impl ManagesieveCoroutine for ManagesieveSessionOpen {
                     debug!("{}", self.state);
                 }
                 State::GreetingTls(greeting) => {
-                    self.capabilities = managesieve_try!(greeting, arg);
+                    self.capabilities = managesieve_try!(greeting, arg.take());
 
                     match self.wants_auth() {
                         Err(err) => return ManagesieveCoroutineState::Complete(Err(err)),
@@ -479,7 +485,7 @@ impl ManagesieveCoroutine for ManagesieveSessionOpen {
                     }
                 }
                 State::Auth(auth) => {
-                    self.capabilities = managesieve_try!(auth.as_mut(), arg);
+                    self.capabilities = managesieve_try!(auth.as_mut(), arg.take());
                     return self.complete();
                 }
             }
@@ -827,6 +833,30 @@ mod tests {
             err,
             ManagesieveSessionOpenError::UrlMissingHost(_)
         ));
+    }
+
+    #[cfg(feature = "url")]
+    #[test]
+    fn an_ipv6_url_host_loses_its_brackets() {
+        let url = Url::parse("sieves://[2001:db8::25]:5190").unwrap();
+        let expected = ManagesieveSessionTransport::Tls {
+            host: "2001:db8::25".to_string(),
+            port: 5190,
+        };
+        assert_eq!(
+            ManagesieveSessionTransport::from_url(&url).unwrap(),
+            expected
+        );
+
+        let url = Url::parse("sieve://192.0.2.25").unwrap();
+        let expected = ManagesieveSessionTransport::Tcp {
+            host: "192.0.2.25".to_string(),
+            port: 4190,
+        };
+        assert_eq!(
+            ManagesieveSessionTransport::from_url(&url).unwrap(),
+            expected
+        );
     }
 
     #[test]

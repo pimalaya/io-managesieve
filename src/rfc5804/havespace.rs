@@ -159,12 +159,9 @@ impl fmt::Display for State {
 mod tests {
     use alloc::vec::Vec;
 
-    use crate::{
-        coroutine::*,
-        rfc5804::{
-            havespace::*,
-            response::{ManagesieveQuota, ManagesieveResponseCode},
-        },
+    use crate::rfc5804::{
+        havespace::*,
+        response::{ManagesieveQuota, ManagesieveResponseCode},
     };
 
     #[test]

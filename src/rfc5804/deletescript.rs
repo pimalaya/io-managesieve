@@ -151,10 +151,7 @@ impl fmt::Display for State {
 mod tests {
     use alloc::vec::Vec;
 
-    use crate::{
-        coroutine::*,
-        rfc5804::{deletescript::*, response::ManagesieveResponseCode},
-    };
+    use crate::rfc5804::{deletescript::*, response::ManagesieveResponseCode};
 
     #[test]
     fn success_returns_ok() {

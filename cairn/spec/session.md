@@ -14,6 +14,9 @@ Everything between a bare address and an authenticated session is one composite 
 ### Requirement: Scheme table
 `sieve://` SHALL be plain TCP, `sieves://` implicit TLS and `unix://` a local socket, all defaulting to port 4190, the only port RFC 5804 registers. `sieves` SHALL name the deployments listening for a TLS handshake straight away. RFC 5804 defines no such scheme and registers no port for it, while the PACC discovery draft resolves ManageSieve at 4190 under implicit TLS, so the scheme SHALL be carried and SHALL be documented as unregistered rather than as an invention of this project.
 
+### Requirement: URL host
+`ManagesieveSessionTransport::from_url` SHALL hand the host over as a connect call takes it: an IPv6 address without the brackets a URL writes around it, an IPv4 address and a domain as they are.
+
 ### Requirement: STARTTLS
 STARTTLS on an already-encrypted transport SHALL fail before a socket is opened. STARTTLS against a server not advertising it SHALL fail rather than carrying on in the clear. The capabilities read before the upgrade SHALL be discarded and re-read afterwards.
 

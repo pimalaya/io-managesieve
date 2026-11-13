@@ -101,11 +101,11 @@ use io_sasl::{
     scram_sha_512::SaslScramSha512,
 };
 use log::{debug, trace};
+use secrecy::{ExposeSecret, SecretBox};
 use thiserror::Error;
 
 use crate::{
     coroutine::*,
-    managesieve_try,
     rfc5804::{
         capability::{
             ManagesieveCapabilities, ManagesieveCapabilityGet, ManagesieveCapabilityGetError,
@@ -122,7 +122,7 @@ use crate::{
 /// The AUTHENTICATE command ([RFC 5804 section 2.1]).
 ///
 /// [RFC 5804 section 2.1]: https://www.rfc-editor.org/rfc/rfc5804#section-2.1
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct ManagesieveAuthenticateCommand {
     /// The mechanism to run, named as IANA registered it.
     pub mechanism: SaslMechanism,
@@ -130,7 +130,7 @@ pub struct ManagesieveAuthenticateCommand {
     ///
     /// Inlining it saves the round trip of the empty challenge, and is
     /// only valid for a mechanism that speaks first.
-    pub initial_response: Option<Vec<u8>>,
+    pub initial_response: Option<SecretBox<[u8]>>,
 }
 
 impl From<ManagesieveAuthenticateCommand> for Vec<u8> {
@@ -140,8 +140,10 @@ impl From<ManagesieveAuthenticateCommand> for Vec<u8> {
         bytes.extend(string(cmd.mechanism.as_str().as_bytes()));
 
         if let Some(response) = cmd.initial_response {
+            let response = base64.encode(response.expose_secret());
+
             bytes.push(b' ');
-            bytes.extend(string(base64.encode(response).as_bytes()));
+            bytes.extend(string(response.as_bytes()));
         }
 
         bytes.extend_from_slice(b"\r\n");
@@ -229,12 +231,14 @@ pub enum ManagesieveAuthenticateError {
     /// The underlying exchange failed.
     #[error("ManageSieve AUTHENTICATE failed: {0}")]
     Send(#[from] ManagesieveCommandSendError),
+    /// The coroutine was resumed after it completed.
+    #[error("ManageSieve AUTHENTICATE failed: coroutine resumed after completion")]
+    Completed,
 }
 
 /// I/O-free ManageSieve AUTHENTICATE coroutine.
 pub struct ManagesieveAuthenticate {
     state: State,
-    sasl: Option<Sasl>,
     mechanism: Option<Box<Mechanism>>,
     buf: LineBuffer,
     wants_read: bool,
@@ -253,8 +257,7 @@ impl ManagesieveAuthenticate {
     /// randomness.
     pub fn new(sasl: impl Into<Sasl>, opts: ManagesieveAuthenticateOptions) -> Self {
         Self {
-            state: State::Start,
-            sasl: Some(sasl.into()),
+            state: State::Start(sasl.into()),
             mechanism: None,
             buf: LineBuffer::default(),
             wants_read: false,
@@ -272,12 +275,13 @@ impl ManagesieveAuthenticate {
     fn resume_sasl(
         &mut self,
         arg: SaslArg<'_>,
-    ) -> Result<Option<Vec<u8>>, ManagesieveAuthenticateError> {
+    ) -> Result<Option<SecretBox<[u8]>>, ManagesieveAuthenticateError> {
         let Some(mechanism) = self.mechanism.as_mut() else {
             return Ok(None);
         };
 
-        mechanism.resume(arg)
+        let payload = mechanism.resume(arg)?;
+        Ok(payload.map(SecretBox::from))
     }
 
     /// Reads one logical line out of the buffer, or asks for more.
@@ -374,10 +378,9 @@ impl ManagesieveCoroutine for ManagesieveAuthenticate {
                 return ManagesieveCoroutineState::Yielded(ManagesieveYield::WantsRead);
             }
 
-            match &mut self.state {
-                State::Start => {
-                    let sasl = self.sasl.take().expect("credentials taken twice");
-
+            // NOTE: a step that completes leaves the coroutine done
+            match mem::replace(&mut self.state, State::Done) {
+                State::Start(sasl) => {
                     let mechanism = match Mechanism::new(sasl) {
                         Ok(mechanism) => mechanism,
                         Err(err) => return ManagesieveCoroutineState::Complete(Err(err)),
@@ -417,17 +420,12 @@ impl ManagesieveCoroutine for ManagesieveAuthenticate {
                     debug!("{}", self.state);
                 }
                 State::Write { bytes, pending } => {
-                    let bytes = mem::take(bytes);
-                    let pending = pending.take();
-
                     self.state = State::Read { pending };
                     debug!("{}", self.state);
 
                     return ManagesieveCoroutineState::Yielded(ManagesieveYield::WantsWrite(bytes));
                 }
-                State::Read { pending } => {
-                    let mut pending = pending.take();
-
+                State::Read { mut pending } => {
                     // NOTE: a resume carrying nothing still looks at the
                     // buffer first, since a line the last read went
                     // past is already there and asking for another read
@@ -475,11 +473,16 @@ impl ManagesieveCoroutine for ManagesieveAuthenticate {
                             };
 
                             self.state = match payload {
-                                Ok(payload) => State::Write {
-                                    bytes: Self::client_response(&payload.unwrap_or_default()),
-                                    pending: None,
-                                },
-                                Err(err) => State::Cancel { error: Some(err) },
+                                Ok(payload) => {
+                                    let payload = payload.as_ref().map(ExposeSecret::expose_secret);
+                                    let bytes = Self::client_response(payload.unwrap_or_default());
+
+                                    State::Write {
+                                        bytes,
+                                        pending: None,
+                                    }
+                                }
+                                Err(err) => State::Cancel(err),
                             };
 
                             debug!("{}", self.state);
@@ -500,17 +503,14 @@ impl ManagesieveCoroutine for ManagesieveAuthenticate {
                         }
                     }
                 }
-                State::Cancel { error } => {
-                    self.state = State::Abort {
-                        error: error.take(),
-                    };
+                State::Cancel(error) => {
+                    self.state = State::Abort(error);
                     debug!("{}", self.state);
 
                     let bytes = b"\"*\"\r\n".to_vec();
                     return ManagesieveCoroutineState::Yielded(ManagesieveYield::WantsWrite(bytes));
                 }
-                State::Abort { error } => {
-                    let mut error = error.take();
+                State::Abort(error) => {
                     let eof = matches!(arg, Some(&[]));
 
                     if let Some(data) = arg.take() {
@@ -523,19 +523,32 @@ impl ManagesieveCoroutine for ManagesieveAuthenticate {
                     // it, so EOF ends the wait rather than replacing the
                     // cause.
                     if !eof && !self.saw_cancellation_reply() {
-                        self.state = State::Abort { error };
+                        self.state = State::Abort(error);
                         self.wants_read = true;
                         continue;
                     }
 
-                    let err = error.take().expect("cancellation cause taken twice");
-                    return ManagesieveCoroutineState::Complete(Err(err));
+                    return ManagesieveCoroutineState::Complete(Err(error));
                 }
-                State::Capability(capability) => {
-                    let capabilities = managesieve_try!(capability, arg);
-                    debug!("authenticated");
+                State::Capability(mut capability) => {
+                    // NOTE: no managesieve_try, a yield puts the state back
+                    let capabilities = match capability.resume(arg.take()) {
+                        ManagesieveCoroutineState::Yielded(yielded) => {
+                            self.state = State::Capability(capability);
+                            return ManagesieveCoroutineState::Yielded(yielded);
+                        }
+                        ManagesieveCoroutineState::Complete(Err(err)) => {
+                            return ManagesieveCoroutineState::Complete(Err(err.into()));
+                        }
+                        ManagesieveCoroutineState::Complete(Ok(capabilities)) => capabilities,
+                    };
 
+                    debug!("authenticated");
                     return ManagesieveCoroutineState::Complete(Ok(capabilities));
+                }
+                State::Done => {
+                    let err = ManagesieveAuthenticateError::Completed;
+                    return ManagesieveCoroutineState::Complete(Err(err));
                 }
             }
         }
@@ -543,33 +556,31 @@ impl ManagesieveCoroutine for ManagesieveAuthenticate {
 }
 
 enum State {
-    Start,
+    Start(Sasl),
     Write {
         bytes: Vec<u8>,
-        pending: Option<Vec<u8>>,
+        pending: Option<SecretBox<[u8]>>,
     },
     Read {
-        pending: Option<Vec<u8>>,
+        pending: Option<SecretBox<[u8]>>,
     },
-    Cancel {
-        error: Option<ManagesieveAuthenticateError>,
-    },
-    Abort {
-        error: Option<ManagesieveAuthenticateError>,
-    },
+    Cancel(ManagesieveAuthenticateError),
+    Abort(ManagesieveAuthenticateError),
     Capability(ManagesieveCapabilityGet),
+    Done,
 }
 
 impl fmt::Display for State {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Start => f.write_str("start mechanism"),
+            Self::Start(_) => f.write_str("start mechanism"),
             Self::Write { pending, .. } if pending.is_some() => f.write_str("send auth"),
             Self::Write { .. } => f.write_str("send auth response"),
             Self::Read { .. } => f.write_str("read challenge"),
-            Self::Cancel { .. } => f.write_str("cancel exchange"),
-            Self::Abort { .. } => f.write_str("read cancellation reply"),
+            Self::Cancel(_) => f.write_str("cancel exchange"),
+            Self::Abort(_) => f.write_str("read cancellation reply"),
             Self::Capability(_) => f.write_str("fetch capabilities"),
+            Self::Done => f.write_str("done"),
         }
     }
 }
@@ -684,12 +695,14 @@ fn step<E>(state: SaslCoroutineState<SaslYield, Result<(), E>>) -> Result<Option
 
 #[cfg(test)]
 mod tests {
-    use alloc::{string::String, vec::Vec};
+    use alloc::{format, string::String, vec::Vec};
 
-    use io_sasl::{login::SaslLoginCreds, rfc4616::plain::SaslPlainCreds};
+    use io_sasl::{
+        login::SaslLoginCreds, rfc4616::plain::SaslPlainCreds, rfc4752::gssapi::SaslGssapiCreds,
+    };
     use secrecy::SecretString;
 
-    use crate::{coroutine::*, rfc5804::authenticate::*};
+    use crate::rfc5804::authenticate::*;
 
     #[test]
     fn initial_response_success_returns_ok() {
@@ -859,6 +872,83 @@ mod tests {
             err,
             ManagesieveAuthenticateError::Send(ManagesieveCommandSendError::Eof)
         ));
+    }
+
+    #[test]
+    fn the_command_keeps_its_initial_response_out_of_debug() {
+        let cmd = ManagesieveAuthenticateCommand {
+            mechanism: SaslMechanism::Plain,
+            initial_response: Some(b"\0alice\0secret".to_vec().into()),
+        };
+
+        let debug = format!("{cmd:?}");
+        let secret = format!("{:?}", b"secret");
+
+        assert!(!debug.contains(secret.trim_matches(['[', ']'])), "{debug}");
+    }
+
+    #[test]
+    fn resuming_after_an_unsupported_mechanism_returns_completed_error() {
+        let creds = SaslGssapiCreds {
+            token: b"token".to_vec(),
+        };
+
+        let mut auth = ManagesieveAuthenticate::new(creds, Default::default());
+
+        let err = match auth.resume(None) {
+            ManagesieveCoroutineState::Complete(Err(err)) => err,
+            state => panic!("expected Complete(Err), got {state:?}"),
+        };
+
+        assert!(matches!(
+            err,
+            ManagesieveAuthenticateError::UnsupportedMechanism(SaslMechanism::Gssapi)
+        ));
+
+        let err = match auth.resume(None) {
+            ManagesieveCoroutineState::Complete(Err(err)) => err,
+            state => panic!("expected Complete(Err), got {state:?}"),
+        };
+
+        assert!(matches!(err, ManagesieveAuthenticateError::Completed));
+    }
+
+    #[test]
+    fn resuming_after_a_cancelled_exchange_returns_completed_error() {
+        let opts = ManagesieveAuthenticateOptions {
+            initial_response: true,
+            ..Default::default()
+        };
+
+        let mut auth = ManagesieveAuthenticate::new(plain(), opts);
+        expect_wants_write(&mut auth, None);
+        expect_wants_read(&mut auth);
+        expect_wants_write(&mut auth, Some(b"\"\"\r\n"));
+        expect_wants_read(&mut auth);
+        let err = expect_complete_err(&mut auth, b"NO \"aborted\"\r\n");
+        assert!(matches!(
+            err,
+            ManagesieveAuthenticateError::Plain(SaslPlainError::UnexpectedChallenge)
+        ));
+
+        let err = expect_complete_err(&mut auth, b"NO \"aborted\"\r\n");
+        assert!(matches!(err, ManagesieveAuthenticateError::Completed));
+    }
+
+    #[test]
+    fn resuming_after_success_returns_completed_error() {
+        let opts = ManagesieveAuthenticateOptions {
+            initial_response: true,
+            ..Default::default()
+        };
+
+        let mut auth = ManagesieveAuthenticate::new(plain(), opts);
+        expect_wants_write(&mut auth, None);
+        expect_wants_read(&mut auth);
+        expect_complete_ok(&mut auth, b"OK\r\n");
+
+        let err = expect_complete_err(&mut auth, b"OK\r\n");
+        assert!(matches!(err, ManagesieveAuthenticateError::Completed));
     }
 
     fn plain() -> SaslPlainCreds {

@@ -28,5 +28,11 @@ The final server data MAY arrive in the `SASL` response code of the OK; it SHALL
 ### Requirement: Cancellation
 When a mechanism refuses what the server said, the coroutine SHALL send the `"*"` string RFC 5804 section 2.1 gives clients, read the reply and discard it, then report the mechanism's failure. A caller is left with a session it can keep using rather than a stream out of step with its server.
 
+### Requirement: Credentials in memory
+`ManagesieveAuthenticateCommand` SHALL hold its initial response as a `SecretBox<[u8]>`, and the coroutine SHALL hold a mechanism payload awaiting its challenge the same way, so that neither prints through `Debug` and both are zeroised when dropped. The bytes handed to the caller in `WantsWrite` are the caller's.
+
+### Requirement: Terminal state
+Once it completed, with a success or with an error, the coroutine SHALL answer every further resume with `ManagesieveAuthenticateError::Completed`. It SHALL NOT panic, whatever the order a caller resumes it in.
+
 ### Requirement: Capability refresh
 `ensure_capabilities` SHALL issue a `CAPABILITY` command after a successful exchange, since a server may change OWNER, LANGUAGE and MAXREDIRECTS per user. The coroutine SHALL NOT read a capability response it was not promised: RFC 5804 requires one only when a SASL security layer was negotiated, and no mechanism here negotiates one.

@@ -174,7 +174,7 @@ mod tests {
         vec::Vec,
     };
 
-    use crate::{coroutine::*, rfc5804::noop::*};
+    use crate::rfc5804::noop::*;
 
     #[test]
     fn success_returns_no_tag() {

@@ -10,10 +10,10 @@ status: current
 `#![no_std]` SHALL be unconditional and `extern crate alloc` SHALL be declared. `extern crate std` SHALL sit behind the `client` feature and nowhere else.
 
 ### Requirement: Feature layers
-`client` SHALL gate the std-blocking client. Each TLS feature (`rustls-ring`, `rustls-aws`, `native-tls`) SHALL imply `client` and `url`, select the pimalaya-stream provider and pull `anyhow`. `vendored` SHALL forward to pimalaya-stream. A feature SHALL exist only where it changes the crate set, `client` being the blessed exception.
+`client` SHALL gate the std-blocking client. Each TLS feature (`rustls-ring`, `rustls-aws`, `native-tls`) SHALL imply `client` and `url`, select the pimalaya-stream provider and pull `anyhow` and `rand`, the connect they gate being the only code drawing a SCRAM client nonce. `vendored` SHALL forward to pimalaya-stream. A feature SHALL exist only where it changes the crate set, `client` being the blessed exception.
 
 ### Requirement: SASL features
-`scram` SHALL pull the crypto crates the exchange needs plus `rand` for the nonce the std client draws, and SHALL enable both io-sasl SCRAM features: RFC 5804 section 2.1 tells client implementations to implement SCRAM-SHA-1, so a default build carrying only the SHA-2 profiles would not conform.
+`scram` SHALL pull the crypto crates the exchange needs and SHALL NOT pull `rand`, the coroutines taking the client nonce with the credentials, so that the coroutine layer with `scram` builds without std. It SHALL enable both io-sasl SCRAM features: RFC 5804 section 2.1 tells client implementations to implement SCRAM-SHA-1, so a default build carrying only the SHA-2 profiles would not conform.
 
 `cram-md5` SHALL stay off, a weak mechanism reaching a build only by request. SASLprep SHALL be enabled on the io-sasl dependency rather than left to its default set, RFC 5804 section 2.1 requiring the authorization identity to be prepared.
 

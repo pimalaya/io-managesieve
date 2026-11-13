@@ -182,7 +182,7 @@ impl fmt::Display for State {
 mod tests {
     use alloc::{string::ToString, vec::Vec};
 
-    use crate::{coroutine::*, rfc5804::listscripts::*};
+    use crate::rfc5804::listscripts::*;
 
     #[test]
     fn success_returns_the_scripts_and_marks_the_active_one() {

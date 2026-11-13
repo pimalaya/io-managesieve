@@ -18,13 +18,13 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
 default = ["rustls-ring", "scram"]
-scram = ["dep:rand", "io-sasl/scram", "io-sasl/scram-sha-1"]
+scram = ["io-sasl/scram", "io-sasl/scram-sha-1"]
 cram-md5 = ["io-sasl/cram-md5"]
 url = ["dep:url"]
 client = []
-rustls-ring = ["client", "url", "pimalaya-stream/rustls-ring", "dep:anyhow"]
-rustls-aws = ["client", "url", "pimalaya-stream/rustls-aws", "dep:anyhow"]
-native-tls = ["client", "url", "pimalaya-stream/native-tls", "dep:anyhow"]
+rustls-ring = ["client", "url", "pimalaya-stream/rustls-ring", "dep:anyhow", "dep:rand"]
+rustls-aws = ["client", "url", "pimalaya-stream/rustls-aws", "dep:anyhow", "dep:rand"]
+native-tls = ["client", "url", "pimalaya-stream/native-tls", "dep:anyhow", "dep:rand"]
 vendored = ["pimalaya-stream/vendored"]
 
 [[example]]
@@ -57,7 +57,7 @@ base64 = { version = "0.23", default-features = false, features = ["alloc"] }
 io-sasl = { version = "0.1", default-features = false, features = ["saslprep"] }
 log = { version = "0.4", default-features = false }
 pimalaya-stream = { version = "0.3", default-features = false, optional = true }
-rand = { version = "0.10", optional = true }
+rand = { version = "0.10", default-features = false, features = ["thread_rng"], optional = true }
 secrecy = { version = "0.10", default-features = false }
 thiserror = { version = "2", default-features = false }
 url = { version = "2.2", default-features = false, optional = true }

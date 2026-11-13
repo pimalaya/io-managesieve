@@ -329,7 +329,6 @@ mod tests {
     use alloc::{string::ToString, vec, vec::Vec};
 
     use crate::{
-        coroutine::*,
         rfc5804::{
             capability::*,
             response::{ManagesieveDataLine, ManagesieveResponse, ManagesieveToken},

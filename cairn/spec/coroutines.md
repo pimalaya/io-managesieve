@@ -17,7 +17,10 @@ The resume argument SHALL be `None` for the initial call and after a write, `Som
 `ManagesieveYield` SHALL carry `WantsRead` and `WantsWrite(Vec<u8>)`, each naming the caller's action rather than the coroutine's. Every command coroutine SHALL declare it. A coroutine needing more, which today is only the session opener, SHALL declare its own enum and SHALL provide `From<ManagesieveYield>` for it.
 
 ### Requirement: State naming
-A coroutine's private `State` enum SHALL name each variant after the action in flight, as a present-tense verb (`Start`, `Write`, `Read`, `Cancel`). An `Await` or `Pending` prefix is banned. Each SHALL carry a `Display` impl reading the same way (`send putscript`, `read challenge`), and a state change SHALL be logged with `debug!("{}", self.state)`.
+A coroutine's private `State` enum SHALL name each variant after the action in flight, as a present-tense verb (`Start`, `Write`, `Read`, `Cancel`). An `Await` or `Pending` prefix is banned. Each SHALL carry a `Display` impl reading the same way (`send putscript`, `read challenge`), and a state change SHALL be logged with `debug!("{}", self.state)`. A terminal `Done` state, where a coroutine has one, is the exception to the verb.
+
+### Requirement: Argument hand-off
+A coroutine running several steps in one loop SHALL hand a resume argument to one step only, taking it out of the option as it does (`arg.take()`), so that the bytes completing one step never reach the next.
 
 ### Requirement: Base exchanges
 `send::ManagesieveResponseRead` SHALL own the read side alone, for the greeting and the capability response following a TLS upgrade, which arrive unprompted. `send::ManagesieveCommandSend` SHALL be that coroutine with a write in front of it, and every command SHALL delegate to it, except the authentication exchange, which reads a line at a time because it answers each challenge before the response is over.

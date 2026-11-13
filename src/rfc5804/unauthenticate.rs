@@ -143,7 +143,7 @@ impl fmt::Display for State {
 mod tests {
     use alloc::{string::ToString, vec::Vec};
 
-    use crate::{coroutine::*, rfc5804::unauthenticate::*};
+    use crate::rfc5804::unauthenticate::*;
 
     #[test]
     fn success_returns_ok() {
