@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-13
+
 ### Added
 
 - Added the `parse` and `read` fuzz targets, run from the `fuzz` devShell.
@@ -98,5 +100,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
   `ManagesieveClient` and `ManagesieveClientAsync` carry one method per coroutine over a single `run`, and `ManagesieveClientStd` implements the blocking one over any `Read + Write` stream. With a TLS feature enabled, `connect` opens a whole authenticated session from a URL, answering the session coroutine's transport requests with a pimalaya-stream `Stream`.
 
-[unreleased]: https://github.com/pimalaya/io-managesieve/compare/v0.1.0..HEAD
+[unreleased]: https://github.com/pimalaya/io-managesieve/compare/v0.3.0..HEAD
+[0.3.0]: https://github.com/pimalaya/io-managesieve/compare/v0.1.0..v0.3.0
 [0.1.0]: https://github.com/pimalaya/io-managesieve/compare/root..v0.1.0
