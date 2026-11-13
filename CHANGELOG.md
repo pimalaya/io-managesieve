@@ -14,7 +14,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
   **BREAKING** for a match naming every variant.
 
+- Added the `scram` field to `ManagesieveAuthenticateOptions` and `ManagesieveSessionOpenOptions`, behind the `scram` feature.
+
+  An io-sasl `SaslScramOptions` bounding the iteration count a SCRAM server may announce, 4096 to five million by default. **BREAKING** for a literal naming every field.
+
 ### Changed
+
+- **BREAKING**: Changed the io-sasl dependency to 0.2.
+
+  SCRAM refuses an iteration count outside its bounds and a client nonce shorter than 18 bytes, and PLAIN and SCRAM prepare their credentials in every build.
+
+- Changed the minimum Rust version to 1.89, io-sasl's.
 
 - Changed the `scram` feature to pull no randomness: `rand` now comes with the TLS features, whose connect is the only code drawing a nonce.
 

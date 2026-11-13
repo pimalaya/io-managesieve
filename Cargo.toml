@@ -3,7 +3,7 @@ name = "io-managesieve"
 description = "ManageSieve client library for Rust"
 version = "0.2.0"
 authors = ["Clément DOUIN (soywod) <pimalaya.org@posteo.net>"]
-rust-version = "1.88"
+rust-version = "1.89"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 categories = ["email", "no-std"]
@@ -54,7 +54,7 @@ url = "2"
 [dependencies]
 anyhow = { version = "1", optional = true }
 base64 = { version = "0.23", default-features = false, features = ["alloc"] }
-io-sasl = { version = "0.1", default-features = false, features = ["saslprep"] }
+io-sasl = { version = "0.2", default-features = false }
 log = { version = "0.4", default-features = false }
 pimalaya-stream = { version = "0.3", default-features = false, optional = true }
 rand = { version = "0.10", default-features = false, features = ["thread_rng"], optional = true }

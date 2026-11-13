@@ -96,7 +96,7 @@ use io_sasl::{
 };
 #[cfg(feature = "scram")]
 use io_sasl::{
-    rfc5802::{SaslScramError, scram_sha_1::SaslScramSha1},
+    rfc5802::{SaslScramError, SaslScramOptions, scram_sha_1::SaslScramSha1},
     rfc7677::scram_sha_256::SaslScramSha256,
     scram_sha_512::SaslScramSha512,
 };
@@ -168,6 +168,48 @@ pub struct ManagesieveAuthenticateOptions {
     /// LANGUAGE and MAXREDIRECTS may be per-user. Off by default, since
     /// it costs a round trip a caller may not need.
     pub ensure_capabilities: bool,
+    /// The bounds on the iteration count a SCRAM server may announce.
+    #[cfg(feature = "scram")]
+    pub scram: SaslScramOptions,
+}
+
+impl ManagesieveAuthenticateOptions {
+    /// Builds the mechanism `sasl` describes.
+    fn mechanism(&self, sasl: Sasl) -> Result<Mechanism, ManagesieveAuthenticateError> {
+        let mechanism = match sasl {
+            Sasl::Anonymous(creds) => Mechanism::Anonymous(SaslAnonymous::new(creds)),
+            #[cfg(feature = "cram-md5")]
+            Sasl::CramMd5(creds) => Mechanism::CramMd5(SaslCramMd5::new(creds)),
+            Sasl::External(creds) => Mechanism::External(SaslExternal::new(creds)),
+            Sasl::Login(creds) => Mechanism::Login(SaslLogin::new(creds)),
+            Sasl::Plain(creds) => Mechanism::Plain(SaslPlain::new(creds)),
+            Sasl::Oauthbearer(creds) => Mechanism::Oauthbearer(SaslOauthbearer::new(creds)),
+            Sasl::Xoauth2(creds) => Mechanism::Xoauth2(SaslXoauth2::new(creds)),
+            #[cfg(feature = "scram")]
+            Sasl::ScramSha1(creds) => {
+                Mechanism::ScramSha1(SaslScramSha1::new(creds, self.scram.clone()))
+            }
+            #[cfg(feature = "scram")]
+            Sasl::ScramSha256(creds) => {
+                Mechanism::ScramSha256(SaslScramSha256::new(creds, self.scram.clone()))
+            }
+            #[cfg(feature = "scram")]
+            Sasl::ScramSha512(creds) => {
+                Mechanism::ScramSha512(SaslScramSha512::new(creds, self.scram.clone()))
+            }
+            // NOTE: the Kerberos relays land here, and so does whatever
+            // io-sasl gains under a feature this crate does not enable
+            // but another crate in the build does.
+            sasl => {
+                let mechanism = sasl.mechanism();
+                return Err(ManagesieveAuthenticateError::UnsupportedMechanism(
+                    mechanism,
+                ));
+            }
+        };
+
+        Ok(mechanism)
+    }
 }
 
 /// Failure causes during the ManageSieve AUTHENTICATE exchange.
@@ -381,7 +423,7 @@ impl ManagesieveCoroutine for ManagesieveAuthenticate {
             // NOTE: a step that completes leaves the coroutine done
             match mem::replace(&mut self.state, State::Done) {
                 State::Start(sasl) => {
-                    let mechanism = match Mechanism::new(sasl) {
+                    let mechanism = match self.opts.mechanism(sasl) {
                         Ok(mechanism) => mechanism,
                         Err(err) => return ManagesieveCoroutineState::Complete(Err(err)),
                     };
@@ -605,37 +647,6 @@ enum Mechanism {
 }
 
 impl Mechanism {
-    /// Builds the mechanism `sasl` describes.
-    fn new(sasl: Sasl) -> Result<Self, ManagesieveAuthenticateError> {
-        let mechanism = match sasl {
-            Sasl::Anonymous(creds) => Self::Anonymous(SaslAnonymous::new(creds)),
-            #[cfg(feature = "cram-md5")]
-            Sasl::CramMd5(creds) => Self::CramMd5(SaslCramMd5::new(creds)),
-            Sasl::External(creds) => Self::External(SaslExternal::new(creds)),
-            Sasl::Login(creds) => Self::Login(SaslLogin::new(creds)),
-            Sasl::Plain(creds) => Self::Plain(SaslPlain::new(creds)),
-            Sasl::Oauthbearer(creds) => Self::Oauthbearer(SaslOauthbearer::new(creds)),
-            Sasl::Xoauth2(creds) => Self::Xoauth2(SaslXoauth2::new(creds)),
-            #[cfg(feature = "scram")]
-            Sasl::ScramSha1(creds) => Self::ScramSha1(SaslScramSha1::new(creds)),
-            #[cfg(feature = "scram")]
-            Sasl::ScramSha256(creds) => Self::ScramSha256(SaslScramSha256::new(creds)),
-            #[cfg(feature = "scram")]
-            Sasl::ScramSha512(creds) => Self::ScramSha512(SaslScramSha512::new(creds)),
-            // NOTE: the Kerberos relays land here, and so does whatever
-            // io-sasl gains under a feature this crate does not enable
-            // but another crate in the build does.
-            sasl => {
-                let mechanism = sasl.mechanism();
-                return Err(ManagesieveAuthenticateError::UnsupportedMechanism(
-                    mechanism,
-                ));
-            }
-        };
-
-        Ok(mechanism)
-    }
-
     /// The tag naming this mechanism on the wire.
     fn mechanism(&self) -> SaslMechanism {
         match self {
@@ -824,6 +835,8 @@ mod tests {
         let opts = ManagesieveAuthenticateOptions {
             initial_response: true,
             ensure_capabilities: true,
+            #[cfg(feature = "scram")]
+            scram: Default::default(),
         };
 
         let mut auth = ManagesieveAuthenticate::new(plain(), opts);

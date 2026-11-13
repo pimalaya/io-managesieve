@@ -35,8 +35,6 @@ The response parser is one pass rather than `is_complete` then `parse`. Finding 
 
 `cram-md5` adds the legacy digest mechanism and stays off, so a build gets a weak mechanism only by asking for it. It is worth having at all because ManageSieve is the one protocol in this family whose framing carries a server-first mechanism without a special case.
 
-SASLprep is enabled on the io-sasl dependency rather than left to the default set, since RFC 5804 section 2.1 requires both client and server to prepare the authorization identity.
-
 Build the shapes that differ:
 
 ```sh

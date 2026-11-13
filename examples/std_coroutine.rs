@@ -47,6 +47,8 @@ fn main() {
     let opts = ManagesieveAuthenticateOptions {
         initial_response: true,
         ensure_capabilities: true,
+        #[cfg(feature = "scram")]
+        scram: Default::default(),
     };
 
     let capabilities =

@@ -25,6 +25,9 @@ A mechanism answering the first resume with `WantsRead` SHALL send its command b
 ### Requirement: End of exchange
 The final server data MAY arrive in the `SASL` response code of the OK; it SHALL be decoded and fed to the mechanism before the exchange is closed. The mechanism SHALL then be resumed with `SaslArg::Done`, so one performing mutual authentication refuses an exchange that ended before it verified anything.
 
+### Requirement: SCRAM iteration bounds
+With the `scram` feature, `ManagesieveAuthenticateOptions::scram` SHALL carry an io-sasl `SaslScramOptions` to every SCRAM profile, and `ManagesieveSessionOpenOptions::scram` SHALL hand its own to the exchange the session runs. Their default SHALL be io-sasl's. A server announcing an iteration count outside those bounds SHALL fail the exchange with the mechanism's error, through the cancellation below, before any key is derived.
+
 ### Requirement: Cancellation
 When a mechanism refuses what the server said, the coroutine SHALL send the `"*"` string RFC 5804 section 2.1 gives clients, read the reply and discard it, then report the mechanism's failure. A caller is left with a session it can keep using rather than a stream out of step with its server.
 

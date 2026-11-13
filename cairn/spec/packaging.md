@@ -15,7 +15,7 @@ status: current
 ### Requirement: SASL features
 `scram` SHALL pull the crypto crates the exchange needs and SHALL NOT pull `rand`, the coroutines taking the client nonce with the credentials, so that the coroutine layer with `scram` builds without std. It SHALL enable both io-sasl SCRAM features: RFC 5804 section 2.1 tells client implementations to implement SCRAM-SHA-1, so a default build carrying only the SHA-2 profiles would not conform.
 
-`cram-md5` SHALL stay off, a weak mechanism reaching a build only by request. SASLprep SHALL be enabled on the io-sasl dependency rather than left to its default set, RFC 5804 section 2.1 requiring the authorization identity to be prepared.
+`cram-md5` SHALL stay off, a weak mechanism reaching a build only by request. The io-sasl dependency SHALL name no preparation feature: io-sasl prepares the credentials of PLAIN and SCRAM in every build, which is what RFC 5804 section 2.1 requires of a client.
 
 ### Requirement: Dependencies
 The coroutine layer SHALL depend only on `base64`, `io-sasl`, `log`, `secrecy` and `thiserror`. `anyhow`, `pimalaya-stream`, `rand` and `url` SHALL be optional and pulled by the features needing them. A TLS implementation SHALL NOT be a direct dependency.

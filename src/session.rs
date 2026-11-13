@@ -91,6 +91,8 @@ use alloc::string::ToString;
 use alloc::{boxed::Box, string::String, vec::Vec};
 
 use io_sasl::mechanism::{Sasl, SaslMechanism};
+#[cfg(feature = "scram")]
+use io_sasl::rfc5802::SaslScramOptions;
 use log::debug;
 use thiserror::Error;
 #[cfg(feature = "url")]
@@ -255,6 +257,9 @@ pub struct ManagesieveSessionOpenOptions {
     /// SCRAM and CRAM-MD5 disclose no password and are unaffected, and
     /// so are ANONYMOUS and EXTERNAL, which send no credential at all.
     pub allow_cleartext_auth: bool,
+    /// The bounds on the iteration count a SCRAM server may announce.
+    #[cfg(feature = "scram")]
+    pub scram: SaslScramOptions,
 }
 
 /// An opened ManageSieve session.
@@ -366,6 +371,8 @@ impl ManagesieveSessionOpen {
         let opts = ManagesieveAuthenticateOptions {
             initial_response: true,
             ensure_capabilities: true,
+            #[cfg(feature = "scram")]
+            scram: self.opts.scram.clone(),
         };
 
         let auth = ManagesieveAuthenticate::new(sasl, opts);
@@ -787,6 +794,67 @@ mod tests {
         match session.resume(Some(b"\"SASL\" \"PLAIN\"\r\nOK\r\n")) {
             ManagesieveCoroutineState::Yielded(ManagesieveSessionOpenYield::WantsWrite(_)) => {}
             state => panic!("expected WantsWrite, got {state:?}"),
+        }
+    }
+
+    #[cfg(feature = "scram")]
+    #[test]
+    fn a_scram_iteration_count_above_the_ceiling_fails_without_deriving() {
+        use alloc::format;
+
+        use base64::{Engine, engine::general_purpose::STANDARD as base64};
+        use io_sasl::{
+            rfc5801::SaslGs2ChannelBinding,
+            rfc5802::{SaslScramCreds, SaslScramError},
+        };
+
+        let creds = SaslScramCreds {
+            username: "user".to_string(),
+            password: SecretString::from("pencil"),
+            nonce: b"rOprNGfwEbeRWgbNEkqO".to_vec(),
+            channel_binding: SaslGs2ChannelBinding::Unsupported,
+        };
+
+        let opts = ManagesieveSessionOpenOptions {
+            scram: SaslScramOptions {
+                max_iterations: Some(10_000),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let mut session = open(tcp(), Some(Sasl::ScramSha256(creds)), opts);
+        session.resume(None);
+        session.resume(None);
+        session.resume(Some(b"\"SASL\" \"SCRAM-SHA-256\"\r\nOK\r\n"));
+        session.resume(None);
+
+        // NOTE: a derivation of u32::MAX rounds would not return
+        let server_first = "r=rOprNGfwEbeRWgbNEkqO%hvYDpWUa2RaTCAfuxFIlj)hNlF$k0,\
+                            s=W22ZaJ0SNY7soEsUEjb6gQ==,i=4294967295";
+        let challenge = format!("\"{}\"\r\n", base64.encode(server_first));
+
+        let cancel = match session.resume(Some(challenge.as_bytes())) {
+            ManagesieveCoroutineState::Yielded(ManagesieveSessionOpenYield::WantsWrite(bytes)) => {
+                bytes
+            }
+            state => panic!("expected WantsWrite, got {state:?}"),
+        };
+
+        assert_eq!(cancel, b"\"*\"\r\n");
+
+        session.resume(None);
+
+        match session.resume(Some(b"NO \"aborted\"\r\n")) {
+            ManagesieveCoroutineState::Complete(Err(
+                ManagesieveSessionOpenError::Authenticate(ManagesieveAuthenticateError::Scram(
+                    SaslScramError::IterationCountTooHigh { count, max },
+                )),
+            )) => {
+                assert_eq!(count, u32::MAX);
+                assert_eq!(max, 10_000);
+            }
+            state => panic!("expected IterationCountTooHigh, got {state:?}"),
         }
     }
 
