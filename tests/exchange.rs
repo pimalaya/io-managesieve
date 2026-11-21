@@ -9,7 +9,7 @@
 //! what a command puts on the wire fails here rather than against
 //! somebody's mail server.
 
-#![cfg(feature = "client")]
+#![cfg(feature = "std")]
 
 use std::{
     io::{Read, Write},

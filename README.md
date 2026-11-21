@@ -23,7 +23,7 @@ This library is composed of 2 feature-gated layers:
 
 ## Features
 
-- **I/O-free coroutines**: no_std state machines with no socket and no runtime, resumable from a blocking, async or in-memory caller.
+- **I/O-free coroutines** (requires `client` feature, enabled by default): no_std state machines with no socket and no runtime, resumable from a blocking, async or in-memory caller.
 - **Every command the protocol defines**: capabilities, STARTTLS, authentication, and the script commands to list, download, upload, check, activate, rename and delete.
 - **Every authentication mechanism**: one exchange frames them all, so PLAIN, LOGIN, SCRAM, OAUTHBEARER, XOAUTH2, ANONYMOUS, EXTERNAL and CRAM-MD5 all work, the server-first ones included.
 - **Session opening in one coroutine**: transport, greeting, TLS upgrade and authentication in order, so an async caller inherits the ordering instead of rewriting it.
@@ -31,6 +31,7 @@ This library is composed of 2 feature-gated layers:
 - **STARTTLS injection refused**: bytes riding along with the upgrade reply end the session instead of being replayed inside it.
 - **Response codes read, not guessed**: a missing script, a taken name, a quota and a compilation warning each arrive as themselves rather than as text to grep.
 - **Literals handled both ways**: a script, a name or an error message travels whole, newlines and quotes included, in either direction.
+- Standard, blocking client wrapping any stream you opened yourself (requires `std` feature)
 - Full standard, blocking client with **TLS** support:
   - [Rustls](https://crates.io/crates/rustls) with ring crypto (requires `rustls-ring` feature, enabled by default)
   - [Rustls](https://crates.io/crates/rustls) with aws crypto (requires `rustls-aws` feature)

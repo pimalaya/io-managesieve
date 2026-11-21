@@ -9,8 +9,8 @@ cargo-fuzz = true
 
 [dependencies]
 arbitrary = { version = "1", features = ["derive"] }
-io-managesieve = { path = "..", default-features = false }
-io-sasl = { version = "0.2", default-features = false }
+io-managesieve = { path = "..", default-features = false, features = ["client"] }
+io-sasl = { version = "0.3", default-features = false }
 libfuzzer-sys = "0.4"
 
 [[bin]]

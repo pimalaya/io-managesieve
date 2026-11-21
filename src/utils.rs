@@ -16,7 +16,9 @@
 
 use core::{mem, str};
 
-use alloc::{format, string::String, vec::Vec};
+use alloc::vec::Vec;
+#[cfg(any(feature = "client", test))]
+use alloc::{format, string::String};
 
 use crate::rfc5804::response::{MAX_LITERAL, ManagesieveResponseParseError};
 
@@ -260,6 +262,7 @@ fn is_atom_special(byte: u8) -> bool {
 /// [`literal`], which carries any octet sequence at all.
 ///
 /// [RFC 5804 section 4]: https://www.rfc-editor.org/rfc/rfc5804#section-4
+#[cfg(any(feature = "client", test))]
 pub(crate) fn quote(value: &[u8]) -> Option<Vec<u8>> {
     let escapes = value
         .iter()
@@ -290,6 +293,7 @@ pub(crate) fn quote(value: &[u8]) -> Option<Vec<u8>> {
 /// The `+` form is the only one a client may send, and it is what lets
 /// a whole command travel in a single write rather than waiting for a
 /// continuation the protocol does not have.
+#[cfg(any(feature = "client", test))]
 pub(crate) fn literal(value: &[u8]) -> Vec<u8> {
     let marker = format!("{{{}+}}\r\n", value.len());
     let mut bytes = Vec::with_capacity(marker.len() + value.len());
@@ -301,11 +305,13 @@ pub(crate) fn literal(value: &[u8]) -> Vec<u8> {
 
 /// Renders `value` as a string, quoted when it fits and literal
 /// otherwise.
+#[cfg(any(feature = "client", test))]
 pub(crate) fn string(value: &[u8]) -> Vec<u8> {
     quote(value).unwrap_or_else(|| literal(value))
 }
 
 /// Renders bytes for a trace log, escaping what a terminal would eat.
+#[cfg(any(feature = "client", test))]
 pub(crate) fn escape_byte_string(bytes: &[u8]) -> String {
     bytes
         .iter()
@@ -322,11 +328,13 @@ pub(crate) fn escape_byte_string(bytes: &[u8]) -> String {
 
 /// Whether `byte` is one of the two QUOTED-SPECIALS a quoted string
 /// escapes.
+#[cfg(any(feature = "client", test))]
 fn is_quoted_special(byte: u8) -> bool {
     byte == b'"' || byte == b'\\'
 }
 
 /// The octets a quoted string may hold between its double quotes.
+#[cfg(any(feature = "client", test))]
 const QUOTED_MAX: usize = 1024;
 
 #[cfg(test)]

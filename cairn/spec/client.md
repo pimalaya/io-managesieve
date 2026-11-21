@@ -6,7 +6,7 @@ status: current
 
 # Client
 
-The `client` feature gates a std-blocking client and the two traits carrying its command surface. It is the only place this crate touches a socket.
+The `std` feature gates a std-blocking client and the two traits carrying its command surface. It is the only place this crate touches a socket.
 
 ### Requirement: Command surface
 `ManagesieveClient` and `ManagesieveClientAsync` SHALL each require one method, `run`, pumping a coroutine against the implementor's transport, and SHALL carry one default body per command. The two SHALL be emitted from a single list of delegations, so a command added to one cannot be missing from the other.

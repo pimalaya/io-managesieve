@@ -24,7 +24,9 @@ use alloc::{string::String, vec::Vec};
 
 use thiserror::Error;
 
-use crate::utils::{LineScan, Token, scan_line};
+#[cfg(feature = "client")]
+use crate::utils::LineScan;
+use crate::utils::{Token, scan_line};
 
 /// The largest literal this crate reads before giving up.
 ///
@@ -401,6 +403,7 @@ impl fmt::Display for ManagesieveResponse {
 ///
 /// Each byte is searched, lexed and copied once, however the reads
 /// split a line.
+#[cfg(feature = "client")]
 #[derive(Debug, Default)]
 pub(crate) struct LineBuffer {
     bytes: Vec<u8>,
@@ -409,6 +412,7 @@ pub(crate) struct LineBuffer {
     scan: LineScan,
 }
 
+#[cfg(feature = "client")]
 impl LineBuffer {
     /// Appends what a read returned, dropping the lines already taken.
     pub(crate) fn push(&mut self, data: &[u8]) {

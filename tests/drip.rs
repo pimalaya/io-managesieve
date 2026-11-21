@@ -7,6 +7,8 @@
 //! over at each read builds its tokens and copies its literals again,
 //! and the count shows it.
 
+#![cfg(feature = "client")]
+
 use std::{
     alloc::{GlobalAlloc, Layout, System},
     cell::Cell,

@@ -6,6 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING**: Renamed the `client` feature, which gated the blocking client and std, to `std`.
+
+  A consumer naming it moves to the new name:
+
+  ```toml
+  # before
+  io-managesieve = { version = "0.5", default-features = false, features = ["client"] }
+  # after
+  io-managesieve = { version = "0.6", default-features = false, features = ["std"] }
+  ```
+
+- **BREAKING**: Changed the `client` feature to gate the coroutines (`coroutine`, `send`, `session` and every command module of `rfc5804` but `response`) and the base64, io-sasl, log and secrecy dependencies. `scram` and `cram-md5` now imply it.
+
+  It is on by default and implied by `std` and the TLS features. A consumer turning default features off to drive the coroutines itself adds it:
+
+  ```toml
+  # before
+  io-managesieve = { version = "0.5", default-features = false }
+  # after
+  io-managesieve = { version = "0.6", default-features = false, features = ["client"] }
+  ```
+
+  The response vocabulary (`rfc5804::response`) stays compiled without it.
+
+- Changed `vendored` to forward to the weak pimalaya-stream dependency, so it no longer pulls pimalaya-stream into a build without a TLS feature.
+
 ## [0.5.0] - 2026-11-19
 
 ### Changed

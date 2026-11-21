@@ -22,12 +22,14 @@ jobs:
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
           extraPullNames: nix-community
       - uses: Swatinem/rust-cache@v2
-      - name: The coroutines alone, no_std and no client
+      - name: The response vocabulary alone, no_std and no coroutine
         run: nix develop -c cargo test --no-default-features
-      - name: The client over a caller-owned stream, without url
+      - name: The coroutines alone, no_std and no blocking client
         run: nix develop -c cargo test --no-default-features --features client
-      - name: The url scheme table, without the client
-        run: nix develop -c cargo test --no-default-features --features url
+      - name: The url scheme table, without the blocking client
+        run: nix develop -c cargo test --no-default-features --features client,url
+      - name: The blocking client over a caller-owned stream, without url
+        run: nix develop -c cargo test --no-default-features --features std
       - name: The default set
         run: nix develop -c cargo test
 

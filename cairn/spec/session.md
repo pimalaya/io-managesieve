@@ -27,4 +27,4 @@ A mechanism disclosing a reusable credential, meaning PLAIN, LOGIN, OAUTHBEARER 
 Authentication SHALL be skipped only when no mechanism is given, ManageSieve having no PREAUTH greeting. That is what a local socket reaching an already-authenticated proxy wants.
 
 ### Requirement: Protocol constants
-`default_port` SHALL answer 4190 whatever the scheme, and `default_alpn` SHALL answer an empty list, no ALPN identifier being registered for ManageSieve. Both SHALL stay reachable without the client feature, config layers being what read them.
+`default_port` SHALL answer 4190 whatever the scheme, and `default_alpn` SHALL answer an empty list, no ALPN identifier being registered for ManageSieve. Both SHALL stay reachable without the `std` feature, under `client` alone, config layers being what read them.

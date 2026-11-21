@@ -7,6 +7,8 @@
 //! all of them catches is exactly that, which is why this is one table
 //! rather than a test per mechanism.
 
+#![cfg(feature = "client")]
+
 use io_managesieve::{
     coroutine::{ManagesieveCoroutine, ManagesieveCoroutineState, ManagesieveYield},
     rfc5804::authenticate::{ManagesieveAuthenticate, ManagesieveAuthenticateOptions},

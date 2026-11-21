@@ -7,7 +7,7 @@
 //! I/O-free ManageSieve client coroutines: every network exchange is a
 //! resumable state machine emitting read and write requests instead of
 //! performing I/O itself, so the caller owns the socket and pumps the
-//! coroutine (see the client feature for a ready-made std-blocking
+//! coroutine (see the std feature for a ready-made std-blocking
 //! pump).
 //!
 //! ManageSieve ([RFC 5804]) is how a user edits the Sieve scripts a
@@ -16,6 +16,15 @@
 //! one filters incoming mail. This crate speaks that protocol and
 //! nothing else. It parses no Sieve, the server being what compiles a
 //! script and reports where it went wrong.
+//!
+//! ## Features
+//!
+//! The response vocabulary ([`rfc5804::response`]) is always compiled.
+//! `client`, on by default, adds the coroutines, the session and the
+//! command modules, with base64, io-sasl, log and secrecy; `scram` and
+//! `cram-md5` add their SASL mechanisms to it, and `url` the session's
+//! URL reading. `std` adds the blocking client, and each TLS feature
+//! (`rustls-ring` by default, `rustls-aws`, `native-tls`) its connector.
 //!
 //! ## The coroutine contract
 //!
@@ -54,7 +63,7 @@
 //! [`send`] the base read and send coroutines, [`session`] the
 //! composite session-opening coroutine, the private utils module the
 //! ACAP-style lexer and quoting the protocol borrows, and [`client`]
-//! the optional std-blocking client (client feature) exposing one
+//! the optional std-blocking client (std feature) exposing one
 //! method per coroutine plus, with a TLS feature enabled, an end-to-end
 //! connect covering transport, STARTTLS and SASL.
 //!
@@ -88,7 +97,7 @@
 //! ## Conventions
 //!
 //! The crate is unconditionally no_std; alloc is always required, std
-//! only under the client feature. Public items carry the bare
+//! only under the std feature. Public items carry the bare
 //! Managesieve domain prefix (the protocol is not versioned, its
 //! VERSION capability naming the specification rather than a wire
 //! format). Coroutine errors normalise to the shape "ManageSieve
@@ -98,14 +107,20 @@
 //! [RFC 5804]: https://www.rfc-editor.org/rfc/rfc5804
 
 extern crate alloc;
-#[cfg(feature = "client")]
+#[cfg(feature = "std")]
 extern crate std;
 
+#[cfg(feature = "std")]
+#[cfg_attr(docsrs, doc(cfg(feature = "std")))]
+pub mod client;
 #[cfg(feature = "client")]
 #[cfg_attr(docsrs, doc(cfg(feature = "client")))]
-pub mod client;
 pub mod coroutine;
 pub mod rfc5804;
+#[cfg(feature = "client")]
+#[cfg_attr(docsrs, doc(cfg(feature = "client")))]
 pub mod send;
+#[cfg(feature = "client")]
+#[cfg_attr(docsrs, doc(cfg(feature = "client")))]
 pub mod session;
 pub(crate) mod utils;

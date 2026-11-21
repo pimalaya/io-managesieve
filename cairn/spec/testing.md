@@ -19,7 +19,7 @@ tests/exchange.rs SHALL drive the public client against a scripted server over a
 tests/drip.rs SHALL feed the readers a response a byte at a time under a counting allocator and assert that the bytes they allocate follow the size of the response rather than the number of reads. The assertion SHALL NOT rest on a clock.
 
 ### Requirement: Feature matrix
-The test suite SHALL pass with no default features, with the default set, and with all features, each compiling a different set of mechanisms and layers.
+The test suite SHALL pass with no default features, with `client` alone, with `client` and `url`, with `std` alone, with the default set, and with all features, each compiling a different set of mechanisms and layers. A test file driving the coroutines SHALL gate on `client`, one driving the blocking client on `std`.
 
 ### Requirement: Coverage
 Every line of the library SHOULD be reachable from a test, measured with cargo-tarpaulin over all features. Production code SHALL NOT be shaped to move the number: code no meaningful test can reach is deleted rather than covered, and code a tool misreads is documented rather than rewritten. The examples and the fuzz package SHALL be excluded from the measured surface, which tarpaulin.toml does.
